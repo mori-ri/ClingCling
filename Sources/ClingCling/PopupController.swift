@@ -117,12 +117,25 @@ final class PopupController: NSObject, NSWindowDelegate {
         let below = caret.map { NSPoint(x: $0.minX, y: $0.minY - 4) } ?? NSPoint(x: mouse.x + 2, y: mouse.y - 4)
         let above = caret.map { NSPoint(x: $0.minX, y: $0.maxY + 4) } ?? NSPoint(x: mouse.x + 2, y: mouse.y + 4)
 
-        let screen = NSScreen.screens.first { $0.frame.contains(below) } ?? NSScreen.main ?? NSScreen.screens[0]
+        // 基準点がどの画面にも入らない（画面の下端ぎりぎりなど）ときに NSScreen.main へ逃がすと、
+        // 別のディスプレイに押し込まれて飛んでしまう。いちばん近い画面を使う。
+        let screen = Self.screen(nearest: caret.map { NSPoint(x: $0.midX, y: $0.midY) } ?? mouse)
         let visible = screen.visibleFrame
         let roomBelow = below.y - visible.minY
         let roomAbove = visible.maxY - above.y
         let growsUp = roomBelow < Self.expectedHeight && roomAbove > roomBelow
         return PopupPanel.Anchor(point: growsUp ? above : below, growsUp: growsUp, visibleFrame: visible)
+    }
+
+    private static func screen(nearest point: NSPoint) -> NSScreen {
+        let screens = NSScreen.screens
+        if let hit = screens.first(where: { NSMouseInRect(point, $0.frame, false) }) { return hit }
+        func distance(_ frame: NSRect) -> CGFloat {
+            let dx = max(frame.minX - point.x, 0, point.x - frame.maxX)
+            let dy = max(frame.minY - point.y, 0, point.y - frame.maxY)
+            return dx * dx + dy * dy
+        }
+        return screens.min { distance($0.frame) < distance($1.frame) } ?? NSScreen.main ?? screens[0]
     }
 
     // フォーカスが外れたら閉じる
@@ -133,33 +146,92 @@ final class PopupController: NSObject, NSWindowDelegate {
 
 /// Accessibility API で前面アプリのテキストキャレット位置を取る
 enum CaretLocator {
-    /// キャレット（選択範囲）の画面上の矩形（Cocoa 座標）。権限がない・対応していないアプリでは nil。
+    /// キャレットの画面上の矩形（Cocoa 座標）。権限がない・対応していない・値が信用できないときは nil。
     static func caretRect() -> NSRect? {
-        guard AXIsProcessTrusted() else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.15)
+        guard AXIsProcessTrusted(), let element = focusedElement(),
+              let caret = insertionPointBounds(of: element) else { return nil }
 
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement
-
-        var range: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &range) == .success,
-              let range else { return nil }
-
-        var bounds: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(element, kAXBoundsForRangeParameterizedAttribute as CFString,
-                                                         range, &bounds) == .success,
-              let bounds, CFGetTypeID(bounds) == AXValueGetTypeID() else { return nil }
-        var rect = CGRect.zero
-        guard AXValueGetValue(bounds as! AXValue, .cgRect, &rect), rect != .zero else { return nil }
+        // アプリによっては、要素の原点・テキスト全体・ウインドウ外などのでたらめな矩形を返す。
+        // フォーカス中の要素の枠に収まっていない値は捨ててマウス位置にフォールバックする。
+        if let frame = frame(of: element), frame.width > 0, frame.height > 0,
+           !frame.insetBy(dx: -8, dy: -8).contains(CGPoint(x: caret.midX, y: caret.midY)) {
+            return nil
+        }
 
         // AX はメイン画面の左上が原点。Cocoa の左下原点に直す。
         guard let primary = NSScreen.screens.first else { return nil }
-        let height = max(rect.height, 1)
-        let flipped = NSRect(x: rect.minX, y: primary.frame.maxY - rect.minY - height, width: rect.width, height: height)
+        let height = max(caret.height, 1)
+        let flipped = NSRect(x: caret.minX, y: primary.frame.maxY - caret.minY - height, width: caret.width, height: height)
         guard NSScreen.screens.contains(where: { $0.frame.intersects(flipped.insetBy(dx: -2, dy: -2)) }) else { return nil }
         return flipped
+    }
+
+    /// 前面アプリのフォーカス中の要素。システム全体から引くと別アプリの古い要素が返ることがあるので、
+    /// まず前面アプリに直接聞く。
+    private static func focusedElement() -> AXUIElement? {
+        var candidates: [AXUIElement] = []
+        if let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            candidates.append(AXUIElementCreateApplication(pid))
+        }
+        candidates.append(AXUIElementCreateSystemWide())
+        for source in candidates {
+            AXUIElementSetMessagingTimeout(source, 0.15)
+            if let element: AXUIElement = copy(source, kAXFocusedUIElementAttribute) { return element }
+        }
+        return nil
+    }
+
+    /// 選択範囲の先頭にある挿入位置の矩形（AX 座標）。
+    /// 長さ 0 の範囲に幅も高さも 0 を返すアプリが多いので、前後の 1 文字の矩形から求め直す。
+    private static func insertionPointBounds(of element: AXUIElement) -> CGRect? {
+        guard let rangeValue: AXValue = copy(element, kAXSelectedTextRangeAttribute) else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(rangeValue, .cfRange, &range), range.location >= 0 else { return nil }
+
+        if let rect = bounds(of: element, location: range.location, length: 0), rect.height > 0 {
+            return CGRect(x: rect.minX, y: rect.minY, width: max(rect.width, 1), height: rect.height)
+        }
+        // 直後の文字の左端
+        if let rect = bounds(of: element, location: range.location, length: 1) {
+            return CGRect(x: rect.minX, y: rect.minY, width: 1, height: rect.height)
+        }
+        // 末尾にいるときは直前の文字の右端
+        if range.location > 0, let rect = bounds(of: element, location: range.location - 1, length: 1) {
+            return CGRect(x: rect.maxX, y: rect.minY, width: 1, height: rect.height)
+        }
+        return nil
+    }
+
+    private static func bounds(of element: AXUIElement, location: Int, length: Int) -> CGRect? {
+        var range = CFRange(location: location, length: length)
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(element, kAXBoundsForRangeParameterizedAttribute as CFString,
+                                                         rangeValue, &value) == .success,
+              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else { return nil }
+        // 1 文字分なのに巨大な矩形（テキスト全体・行全体の箱）や原点そのものは信用しない
+        guard rect.origin != .zero, rect.height > 0 || length == 0, rect.height <= 200 else { return nil }
+        return rect
+    }
+
+    /// 要素の枠（AX 座標）
+    private static func frame(of element: AXUIElement) -> CGRect? {
+        guard let position: AXValue = copy(element, kAXPositionAttribute),
+              let size: AXValue = copy(element, kAXSizeAttribute) else { return nil }
+        var origin = CGPoint.zero, extent = CGSize.zero
+        guard AXValueGetValue(position, .cgPoint, &origin), AXValueGetValue(size, .cgSize, &extent) else { return nil }
+        return CGRect(origin: origin, size: extent)
+    }
+
+    private static func copy<T>(_ element: AXUIElement, _ attribute: String) -> T? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+              let value else { return nil }
+        // AXUIElement / AXValue は CF 型なので as? では判定できない。型 ID で確かめる
+        let expected = T.self == AXUIElement.self ? AXUIElementGetTypeID() : AXValueGetTypeID()
+        guard CFGetTypeID(value) == expected else { return nil }
+        return (value as! T)
     }
 }
