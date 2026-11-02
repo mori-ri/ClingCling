@@ -4,6 +4,7 @@
 // 出力:
 //   AppIcon-1024.png   macOS アイコングリッド（1024 キャンバスに 824 の角丸）にマークを配置
 //   MenuBarIcon.png    18pt の 2x（36px）テンプレート画像（黒 + アルファ）
+//   Logo.png           設定のサイドバーに出すカラーのマーク（透過）
 import AppKit
 
 let args = CommandLine.arguments
@@ -69,6 +70,19 @@ do {
     ctx.strokePath()
 
     try write(ctx.makeImage()!, "AppIcon-1024.png")
+}
+
+// MARK: Sidebar logo
+
+do {
+    let height = 156
+    let width = height * mark.width / mark.height
+    let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.interpolationQuality = .high
+    ctx.draw(mark, in: CGRect(x: 0, y: 0, width: width, height: height))
+    try write(ctx.makeImage()!, "Logo.png")
 }
 
 // MARK: Menu bar template

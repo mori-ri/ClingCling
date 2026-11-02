@@ -29,6 +29,7 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$(dirname "$ICONSET")"
 # 36px = 18pt@2x。名前の末尾 Template で macOS がテンプレート画像として扱う
 cp "$GEN/MenuBarIcon.png" "$APP/Contents/Resources/MenuBarIconTemplate@2x.png"
+cp "$GEN/Logo.png" "$APP/Contents/Resources/Logo.png"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

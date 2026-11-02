@@ -112,7 +112,7 @@ enum Presentation {
         guard !masked else { return attributed }
         for range in SearchQuery(query).ranges(in: text) {
             guard let target = Range(range, in: attributed) else { continue }
-            attributed[target].backgroundColor = selected ? Color.white.opacity(0.28) : Color.yellow.opacity(0.45)
+            attributed[target].backgroundColor = selected ? Color.white.opacity(0.28) : Theme.brandSpark.opacity(0.35)
         }
         return attributed
     }

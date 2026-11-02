@@ -291,7 +291,7 @@ struct ClipRow: View {
         .foregroundStyle(selected ? Color.white : Color.primary)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(selected ? Color.accentColor : hovered ? Color.primary.opacity(0.06) : .clear)
+                .fill(selected ? Theme.accent : hovered ? Color.primary.opacity(0.06) : .clear)
         )
         .contentShape(Rectangle())
         .help(Presentation.meta(item))
@@ -356,7 +356,7 @@ struct ActionMenu: View {
         .foregroundStyle(highlighted ? Color.white : Color.primary)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(highlighted ? Color.accentColor : .clear)
+                .fill(highlighted ? Theme.accent : .clear)
         )
         .contentShape(Rectangle())
     }
@@ -541,7 +541,7 @@ private struct PanelButton: View {
             .padding(.horizontal, 12)
             .frame(height: 26)
             .foregroundStyle(prominent ? Color.white : Color.primary)
-            .background(prominent ? Color.accentColor : Color.primary.opacity(0.07),
+            .background(prominent ? Theme.accent : Color.primary.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .contentShape(Rectangle())
         }
@@ -553,7 +553,8 @@ extension View {
     /// メニューと同じ半透明の面・細い縁・影
     func popupSurface(cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        return background(.regularMaterial, in: shape)
+        return background(Theme.popupTint, in: shape)
+            .background(.regularMaterial, in: shape)
             .overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
     }

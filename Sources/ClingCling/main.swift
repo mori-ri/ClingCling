@@ -41,6 +41,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.popup.writeSnapshot(to: path) }
             }
         }
+        // 開発用: CLINGCLING_APPEARANCE=dark / light で外観を固定する
+        if let name = ProcessInfo.processInfo.environment["CLINGCLING_APPEARANCE"] {
+            NSApp.appearance = NSAppearance(named: name == "dark" ? .darkAqua : .aqua)
+        }
+        // 開発用: CLINGCLING_SETTINGS_PAGE=ai などで起動時に設定を開く（ページは SettingsFormState が読む）
+        if ProcessInfo.processInfo.environment["CLINGCLING_SETTINGS_PAGE"] != nil { showSettings() }
+        // 開発用: CLINGCLING_SETTINGS_SNAPSHOT=/path/to.png で設定ウインドウを画像に書き出す
+        if let path = ProcessInfo.processInfo.environment["CLINGCLING_SETTINGS_SNAPSHOT"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let view = self?.settingsWindow?.contentView?.superview,
+                      let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+            }
+        }
         #endif
     }
 
@@ -50,12 +65,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: NSHostingController(
                 rootView: SettingsView(settings: model.settings, model: model)))
             window.title = "ClingCling Settings"
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            // タイトルバーを隠し、信号機ボタンをサイドバーの内側に置く（WindowButtonsInset）
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
+            window.setContentSize(SettingsView.defaultSize)
+            window.center()
             settingsWindow = window
         }
         NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }
