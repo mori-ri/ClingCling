@@ -1,0 +1,21 @@
+# `gh release create --generate-notes`（scripts/release.sh）の分類。
+# 自動生成のノートは下書きなので、公開前にユーザー向けの日本語に書き直す。
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: 新機能
+      labels:
+        - enhancement
+    - title: 不具合の修正
+      labels:
+        - bug
+    - title: ドキュメント
+      labels:
+        - documentation
+    - title: その他
+      labels:
+        - "*"

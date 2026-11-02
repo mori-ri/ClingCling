@@ -7,7 +7,6 @@ set -euo pipefail
 CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/build/ClingCling.app"
-VERSION="0.1.0"
 
 cd "$ROOT"
 swift build -c "$CONFIG"
@@ -35,42 +34,42 @@ cp -R "$ROOT/Resources/ja.lproj" "$ROOT/Resources/en.lproj" "$APP/Contents/Resou
 # アプリはリポジトリなしで配られるので、ライセンスとアイコン・ロゴの例外も同梱する
 {
     cat "$ROOT/LICENSE"
-    printf '\nThe app icon and logo are not covered by the MIT License above; their copyright belongs to the author.\n'
+    printf '\nThe app icon and logo are not covered by the MIT License above.\n'
 } > "$APP/Contents/Resources/LICENSE.txt"
 
-cat > "$APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key><string>ClingCling</string>
-    <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>CFBundleLocalizations</key><array><string>ja</string><string>en</string></array>
-    <key>CFBundleDisplayName</key><string>ClingCling</string>
-    <key>CFBundleIdentifier</key><string>com.clingcling.app</string>
-    <key>CFBundleExecutable</key><string>ClingCling</string>
-    <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>$VERSION</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
-    <key>LSUIElement</key><true/>
-    <key>NSHighResolutionCapable</key><true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>ClingCling uses this to pass commands to Terminal for the Run action.</string>
-</dict>
-</plist>
-PLIST
+cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
-# 署名（Keychain・アクセシビリティ権限の紐付けに必要）
-# ad-hoc 署名だと designated requirement が cdhash になり、リビルドのたびに
-# アクセシビリティ権限が無効化される。証明書で署名すれば bundle ID + 証明書で照合されるので持続する。
-#   CODESIGN_IDENTITY="名前" で指定。未指定ならキーチェーンの最初の署名用 ID を使う
-IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' 'NR==1 && /"/ {print $2}')}"
-if [[ -n "$IDENTITY" ]]; then
-    codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
-else
-    echo "warning: 署名用 ID が無いため ad-hoc 署名します（リビルドごとにアクセシビリティ権限の再付与が必要）" >&2
-    codesign --force --sign - --timestamp=none "$APP"
+# 署名。ad-hoc 署名は designated requirement が cdhash になり、リビルドのたびにアクセシビリティ権限が外れる。
+# 証明書で署名すれば bundle ID + 証明書で照合されるので権限が残る。
+# CODESIGN_IDENTITY → Developer ID → scripts/create-signing-cert.sh の証明書 → ad-hoc の順に使う。
+# 証明書が見つからなくてもビルドは失敗させない。
+IDENTITIES="$(security find-identity -v -p codesigning || true)"
+IDENTITY="${CODESIGN_IDENTITY:-}"
+if [[ -z "$IDENTITY" ]]; then
+    # 名前だと、期限切れと更新後の証明書が同名のときに曖昧になるのでハッシュを使う
+    IDENTITY="$(awk '/"Developer ID Application: / { print $2; exit }' <<<"$IDENTITIES")"
 fi
-echo "Built $APP"
+if [[ -z "$IDENTITY" ]] && grep -qF '"ClingCling Self-Signed"' <<<"$IDENTITIES"; then
+    IDENTITY="ClingCling Self-Signed"
+fi
+IDENTITY="${IDENTITY:--}"
+
+SIGN_ARGS=(--force --sign "$IDENTITY" --identifier io.github.mori-ri.clingcling)
+# ここのパイプラインでは grep -q を使わない。最初の一致で終了すると、pipefail が書き手の SIGPIPE を失敗として返す。
+if [[ "$IDENTITY" != - ]] && grep -iF "$IDENTITY" <<<"$IDENTITIES" | grep -F '"Developer ID Application: ' >/dev/null; then
+    # 公証には Hardened Runtime が必要。Hardened Runtime では Run アクションの Apple Event に entitlement が要る。
+    SIGN_ARGS+=(--options runtime --entitlements "$ROOT/Resources/ClingCling.entitlements")
+    # 信頼できるタイムスタンプはネットワークが必要なので、release のときだけ付ける
+    if [[ "$CONFIG" == release ]]; then
+        SIGN_ARGS+=(--timestamp)
+    else
+        SIGN_ARGS+=(--timestamp=none)
+    fi
+else
+    if [[ "$IDENTITY" == - ]]; then
+        echo "warning: 署名用 ID が無いため ad-hoc 署名します（リビルドごとにアクセシビリティ権限の再付与が必要。scripts/create-signing-cert.sh で解消できます）" >&2
+    fi
+    SIGN_ARGS+=(--timestamp=none)
+fi
+codesign "${SIGN_ARGS[@]}" "$APP"
+echo "Built $APP (signed with: $IDENTITY)"

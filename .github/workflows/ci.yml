@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          xcode-select -p
+          swift --version
+
+      - name: Test
+        run: scripts/test.sh
+
+      - name: Check localization
+        run: swift scripts/check-localization.swift .
+
+      # 証明書がないので ad-hoc 署名になる。バンドルと署名の手順が壊れていないかを確かめる。
+      - name: Build app
+        run: ./scripts/bundle.sh release

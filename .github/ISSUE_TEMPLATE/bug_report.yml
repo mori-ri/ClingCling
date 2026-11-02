@@ -1,0 +1,41 @@
+name: 🐛 バグ報告
+description: 再現できる不具合を報告する（質問や要望は Discussions へ）
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        再現手順がはっきりしている不具合用です。「なんとなくおかしい」「使い方がわからない」は [Discussions](https://github.com/mori-ri/ClingCling/discussions) で気軽にどうぞ。
+        **コピーした内容をそのまま貼らないでください。** パスワードや API キー、個人情報が含まれていないか確かめ、例を示すときはダミーの値にしてください。
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きたか
+      description: 期待した動作と、実際の動作
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1. Slack でテキストをコピーする
+        2. ⌘⇧V でポップアップを開く
+        3. ↩ を押すと…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ClingCling のバージョン / コミット
+      placeholder: 例 v0.1.0 / eb103b7
+  - type: input
+    id: macos
+    attributes:
+      label: macOS のバージョン
+      placeholder: 例 macOS 26.1
+  - type: input
+    id: target
+    attributes:
+      label: 関係するアプリ
+      placeholder: 例 Slack、VS Code、Chrome

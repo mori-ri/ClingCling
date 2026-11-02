@@ -1,16 +1,34 @@
-<p align="center"><img src="Resources/Branding/ClingCling-logo.png" alt="ClingCling" width="240"></p>
+[English](README.en.md) | 日本語
+
+<p align="center"><img src="Resources/Generated/AppIcon-1024.png" alt="ClingCling" width="200"></p>
 
 # ClingCling
 
 コピーした内容を理解して、次の操作を提案する macOS 用クリップボード（Intent-Aware Clipboard）。
-**Privacy First / Local First** — 安全だと判断できたものだけが、ユーザーの明示操作時に限って AI（Claude / ChatGPT のアプリや Web）に渡されます。API キーは不要です。
+**Privacy First / Local First** — 判定はすべて Mac の中で行い、ClingCling 自身は通信しません。ローカルの判定で問題が見つからなかったものだけを、ユーザーの明示操作時に限って AI（Claude / ChatGPT のアプリや Web）に渡します。判定には限界があります（[Privacy の振る舞い](#privacy-の振る舞い)）。API キーは不要です。
 
-## 使い方
+## 必要なもの
+
+- macOS 14 以降
+- ソースからビルドする場合: macOS 26 以降の SDK（Xcode、または Command Line Tools）
+
+## インストール
+
+[Releases](https://github.com/mori-ri/ClingCling/releases/latest) で公開している版は、Developer ID で署名し、Apple の公証を受けています。zip を展開し、`ClingCling.app` を `/Applications` に移動して開きます。
+
+ソースからビルドする場合:
 
 ```sh
-./scripts/bundle.sh          # build/ClingCling.app を作成（Xcode 不要、CLT のみで可）
+git clone https://github.com/mori-ri/ClingCling.git
+cd ClingCling
+scripts/create-signing-cert.sh   # 任意・推奨（再ビルドしてもアクセシビリティ権限が残る）
+./scripts/bundle.sh              # build/ClingCling.app を作成（Xcode 不要、Command Line Tools のみで可）
 open build/ClingCling.app
 ```
+
+署名用の証明書がないと ad-hoc 署名になり、ビルドのたびにアクセシビリティ権限を許可し直す必要があります（`tccutil reset Accessibility io.github.mori-ri.clingcling`）。
+
+## 使い方
 
 - メニューバーに常駐。コピーしても通知は出ません。
 - **⌘⇧V**（設定 › 一般 で変更可）でテキストカーソルの横にポップアップを開く（カーソル位置が取れないアプリではマウスの位置。位置の取得にはアクセシビリティ権限が必要）
@@ -20,7 +38,7 @@ open build/ClingCling.app
   - テキストも一緒に載っているコピー（表計算のセルなど）はテキストとして扱う。Finder でのファイルコピーは対象外
 - AI Action（説明する / 文章を整える / 短くする / 翻訳する）は Settings → AI で有効化。API は直接呼ばず、指示文を付けた本文を AI に渡します。
   - **アプリ**（既定: Claude アプリ / ChatGPT アプリ）: アプリを前面に出し、⌘N で新しいチャットを開いて貼り付け（任意で ↩ 送信）。終わったらクリップボードを元に戻す。アクセシビリティ権限が必要
-  - **URL**（既定: `https://claude.ai/new?q={prompt}` / `https://chatgpt.com/?q={prompt}`）: `{prompt}`（指示 + 本文）/ `{instruction}` / `{text}` を埋め込んで開く。8,000 文字を超える URL は送らない
+  - **URL**（既定: `https://claude.ai/new?q={prompt}` / `https://chatgpt.com/?q={prompt}`）: `{prompt}`（指示 + 本文）/ `{instruction}` / `{text}` を埋め込んで開く。8,000 文字を超える URL は送らない。本文が URL に入るので、ブラウザの履歴にも残る
   - 送り先の追加・編集、指示文の編集は Settings → AI。確認画面では `⇥` で送り先を切り替え
   - **自作の Action**: Settings → AI で「名前 + 指示文（+ 送り先）」を登録すると、アクションメニューの末尾に並ぶ（例: 「3 行で要約」「敬語に直す」）
 
@@ -66,15 +84,21 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 
 履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。
 
+### 判定の限界
+
+- Secret と個人情報の検出は、規則とエントロピーによるベストエフォートです。形式に当てはまらないパスワードや、氏名などの個人情報は検出できず、通常の文章として保存され、AI にも渡せます。AI の確認画面で内容を確かめてください
+- 「コピー元アプリ」は、コピーを検知したとき（0.4 秒ごとの確認）に最前面にあるアプリです。バックグラウンドのアプリからのコピーや、コピー直後にアプリを切り替えた場合は、別のアプリとして判定されることがあります。Password Manager の除外とアプリ単位のポリシーも、この判定に従います
+- Web ページ以外のリンク（`file:` や `vscode:` など）は、開く前に確認します。Run も実行前に確認します。どちらも、自分でコピーした覚えのない内容は実行しないでください
+
 ## MVP v0.1 の範囲外 / 既知の制限
 
 - テキストと画像が対象（ファイルは未対応）。画像は 30 MB まで、件数は履歴の上限・保存期間に含まれる
 - 既定の ⌘⇧V は、多くのアプリの「スタイルを合わせてペースト」を上書きします（設定 › 一般 で変更できます）
 - 履歴 DB は暗号化していない（ファイル権限 0600 のみ）
-- Copy Session、Semantic Search、ローカル LLM 分類、Jev 連携は未実装
+- Copy Session、Semantic Search、ローカル LLM 分類は未実装
 
 ## ライセンス
 
 ソースコードは [MIT License](LICENSE) です。
 
-アプリアイコンとロゴ（`Resources/Branding/`、`Resources/Generated/`）は MIT License の対象外で、著作権は作者に帰属します。ClingCling のビルドや紹介のために使うのは構いませんが、fork や派生物を配布するときは別のアイコンに差し替えてください。
+アプリアイコンとロゴ（`Resources/Branding/`、`Resources/Generated/`）は MIT License の対象外です。ClingCling のビルドや紹介のために使うのは構いませんが、fork や派生物を配布するときは別のアイコンに差し替えてください。

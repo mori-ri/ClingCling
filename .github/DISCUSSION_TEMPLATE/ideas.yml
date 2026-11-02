@@ -1,0 +1,14 @@
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること・やりたいこと
+      placeholder: 例）同じ定型文を何度もコピーし直している
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: こうなったら便利（任意）
+      placeholder: 例）よく使う項目を別の一覧に固定したい

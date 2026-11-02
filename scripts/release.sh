@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# ClingCling のリリースを 2 段階で行う。
+#
+#   scripts/release.sh prepare <version>   Resources/Info.plist のバージョンを上げる（ビルド番号は +1）。
+#                                          main からなら release-v<version> ブランチにコミットして PR を作る。
+#                                          release/* からならそのブランチにコミットして push する。
+#   scripts/release.sh publish             今の Info.plist のバージョンで HEAD（main か release/*）にタグを打って push し、
+#                                          自動生成のノートでリリースの下書きを作り、公証済みのアプリを添付する。
+#   scripts/release.sh upload              チェックアウトしたタグから公証済みのアプリを作って添付する。
+#                                          publish の最後の手順が失敗したときのやり直し用。
+#
+# 通常の流れ: prepare → PR をマージ → 最新の main に切り替え → publish → 下書きを編集して公開。
+# バージョンは SemVer。プレリリースの接尾辞（0.4.0-beta.1 など）を付けると GitHub のプレリリースになる。
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PLIST=Resources/Info.plist
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+usage() {
+  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  exit 1
+}
+
+plist_get() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST"; }
+plist_get_at() { git show "$1:$PLIST" | plutil -extract "$2" raw -o - -; }
+plist_set() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$PLIST"; }
+
+confirm() {
+  local answer
+  read -r -p "$1 [y/N] " answer
+  [[ "$answer" == [yY] ]]
+}
+
+require_clean_tree() {
+  [[ -z "$(git status --porcelain)" ]] || die "作業ツリーに未コミットの変更があります。"
+}
+
+require_tag_absent() {
+  local tag="$1"
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null || [[ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]]; then
+    die "タグ $tag は既に存在します。"
+  fi
+}
+
+current_branch() { git symbolic-ref --short -q HEAD || true; }
+
+# 作業コピーとすべての v* タグの中で最大の CFBundleVersion。release/* のパッチは main の Info.plist を
+# 上げないので、作業コピーだけを見ると同じビルド番号を 2 度使ってしまう。
+max_released_build() {
+  local max="$1" tag build
+  for tag in $(git tag --list 'v*'); do
+    build="$(git show "$tag:$PLIST" 2>/dev/null | plutil -extract CFBundleVersion raw -o - - 2>/dev/null || true)"
+    if [[ "$build" =~ ^[0-9]+$ ]] && ((build > max)); then
+      max="$build"
+    fi
+  done
+  echo "$max"
+}
+
+prepare() {
+  local version="${1:-}"
+  [[ -n "$version" ]] || usage
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "バージョンの形式が不正です: $version (例: 0.3.0, 0.4.0-beta.1)"
+
+  require_clean_tree
+  git fetch -q origin --tags
+  require_tag_absent "v$version"
+
+  local branch base_branch base_ref
+  branch="$(current_branch)"
+  if [[ "$branch" == release/* ]]; then
+    base_branch=""
+    base_ref=HEAD
+    [[ "$(git rev-parse HEAD)" == "$(git rev-parse "origin/$branch" 2>/dev/null)" ]] \
+      || die "$branch が origin/$branch と一致しません。pull または push してから実行してください。"
+  else
+    base_branch=main
+    base_ref=origin/main
+    branch="release-v$version"
+  fi
+
+  # 作業コピーは古い main や無関係のブランチかもしれないので、バージョンは土台になるコミットから読む
+  local old_version old_build new_build
+  old_version="$(plist_get_at "$base_ref" CFBundleShortVersionString)"
+  old_build="$(plist_get_at "$base_ref" CFBundleVersion)"
+  [[ "$old_build" =~ ^[0-9]+$ ]] || die "CFBundleVersion が整数ではありません: $old_build"
+  [[ "$version" != "$old_version" ]] || die "Info.plist は既に $version です。"
+  new_build=$(($(max_released_build "$old_build") + 1))
+
+  if [[ -n "$base_branch" ]]; then
+    git switch -c "$branch" "$base_ref"
+  fi
+
+  plist_set CFBundleShortVersionString "$version"
+  plist_set CFBundleVersion "$new_build"
+  git add "$PLIST"
+  git commit -q -m "Bump version to $version (build $new_build)"
+  echo "Info.plist: $old_version ($old_build) -> $version ($new_build)"
+
+  git push -q -u origin "$branch"
+  if [[ -n "$base_branch" ]]; then
+    gh pr create --base "$base_branch" --head "$branch" --title "Release v$version" \
+      --body "ClingCling v$version のリリース準備として、バージョンを $version (build $new_build) に上げます。
+
+マージ後、最新の main で \`scripts/release.sh publish\` を実行してタグとリリースの下書きを作ります。"
+    echo "PR をマージしたら: git switch main && git pull && scripts/release.sh publish"
+  else
+    echo "続けて: scripts/release.sh publish"
+  fi
+}
+
+publish() {
+  [[ $# -eq 0 ]] || usage
+  require_clean_tree
+  git fetch -q origin --tags
+
+  local branch
+  branch="$(current_branch)"
+  [[ "$branch" == main || "$branch" == release/* ]] || die "main か release/* ブランチで実行してください (現在: ${branch:-detached HEAD})。"
+  [[ "$(git rev-parse HEAD)" == "$(git rev-parse "origin/$branch" 2>/dev/null)" ]] \
+    || die "$branch が origin/$branch と一致しません。pull または push してから実行してください。"
+
+  local version tag build head
+  version="$(plist_get CFBundleShortVersionString)"
+  build="$(plist_get CFBundleVersion)"
+  tag="v$version"
+  head="$(git rev-parse HEAD)"
+  require_tag_absent "$tag"
+
+  # CI は main への push と PR でしか動かず、release/* には結果がないことがあるので、失敗にせず確認する
+  local ci
+  ci="$(gh run list --workflow ci.yml --commit "$head" --json conclusion --jq 'map(.conclusion) | join(",")')"
+  if [[ ",$ci," != *,success,* ]]; then
+    echo "警告: ${head:0:7} の CI 成功が確認できません (結果: ${ci:-なし})。"
+    confirm "それでも続行しますか?" || exit 1
+  fi
+
+  # ノートは HEAD から辿れる最後のタグから始める。release/* のパッチが main の次のノートをずらさないように。
+  local notes_args=(--generate-notes)
+  local prev_tag
+  if prev_tag="$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null)"; then
+    notes_args+=(--notes-start-tag "$prev_tag")
+  fi
+  local release_args=(--draft --verify-tag --title "ClingCling $tag")
+  if [[ "$version" == *-* ]]; then
+    release_args+=(--prerelease)
+  fi
+
+  # アプリを作れないタグは取り下げにくいので、push の前に確かめる
+  security find-identity -v -p codesigning | grep -F '"Developer ID Application: ' >/dev/null \
+    || die "Developer ID の証明書が見つかりません。"
+  xcrun notarytool history --keychain-profile "${CLINGCLING_NOTARY_PROFILE:-clingcling-notary}" >/dev/null 2>&1 \
+    || die "公証プロファイルを確認できません。scripts/package.sh の先頭の手順で作成してください。"
+
+  echo "$branch の ${head:0:7} に $tag (build $build) を打ち、リリースの下書きを作ります (前回: ${prev_tag:-なし})。"
+  git log -20 --oneline --no-decorate ${prev_tag:+"$prev_tag..HEAD"}
+  confirm "タグを push しますか?" || exit 1
+
+  git tag -a "$tag" -m "ClingCling $tag"
+  git push -q origin "$tag"
+  gh release create "$tag" "${release_args[@]}" "${notes_args[@]}" \
+    || die "タグ $tag は push 済みですが、リリースの作成に失敗しました。次のコマンドを手動で実行してください: $(printf "%q " gh release create "$tag" "${release_args[@]}" "${notes_args[@]}")"
+  upload || die "タグ $tag と下書きは作成済みですが、アプリを添付できませんでした。原因を直してから scripts/release.sh upload を実行してください。"
+  echo "下書きを作成しました。自動生成されたノートをユーザー向けの日本語に書き直してから公開してください。"
+}
+
+# 添付するアプリはタグの内容そのものでなければならないので、HEAD がタグで作業ツリーがきれいなことを求める
+upload() {
+  local version tag
+  version="$(plist_get CFBundleShortVersionString)"
+  tag="v$version"
+  require_clean_tree
+  [[ "$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)" == "$(git rev-parse HEAD)" ]] \
+    || die "HEAD がタグ $tag ではありません。"
+  # && でつなぐ。publish は `||` の中で呼ぶので set -e が効かず、ビルドに失敗しても古い zip を添付してしまう。
+  # NOTARIZE を固定するのも同じ理由で、環境に 0 があると下で添付する名前の zip が作られない。
+  NOTARIZE=1 scripts/package.sh && gh release upload "$tag" "build/ClingCling-$version-$(uname -m).zip" --clobber
+}
+
+case "${1:-}" in
+  prepare) shift; prepare "$@" ;;
+  publish) shift; publish "$@" ;;
+  upload) shift; upload "$@" ;;
+  *) usage ;;
+esac

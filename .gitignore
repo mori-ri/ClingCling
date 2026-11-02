@@ -3,3 +3,16 @@ build/
 .swiftpm/
 .DS_Store
 .vscode/
+.env
+.env.*
+*.secret
+
+# 署名に使うファイル
+*.p12
+*.pem
+*.key
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.keychain
+*.keychain-db
