@@ -29,6 +29,14 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$(dirname "$ICONSET")"
 # 36px = 18pt@2x。名前の末尾 Template で macOS がテンプレート画像として扱う
 cp "$GEN/MenuBarIcon.png" "$APP/Contents/Resources/MenuBarIconTemplate@2x.png"
+cp "$GEN/Logo.png" "$APP/Contents/Resources/Logo.png"
+# 翻訳。コードの日本語がキーなので、ja.lproj の Localizable.strings は空
+cp -R "$ROOT/Resources/ja.lproj" "$ROOT/Resources/en.lproj" "$APP/Contents/Resources/"
+# アプリはリポジトリなしで配られるので、ライセンスとアイコン・ロゴの例外も同梱する
+{
+    cat "$ROOT/LICENSE"
+    printf '\nThe app icon and logo are not covered by the MIT License above; their copyright belongs to the author.\n'
+} > "$APP/Contents/Resources/LICENSE.txt"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -36,6 +44,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key><string>ClingCling</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key><array><string>ja</string><string>en</string></array>
     <key>CFBundleDisplayName</key><string>ClingCling</string>
     <key>CFBundleIdentifier</key><string>com.clingcling.app</string>
     <key>CFBundleExecutable</key><string>ClingCling</string>
@@ -47,7 +57,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Run アクションでコマンドを Terminal に渡すために使用します。</string>
+    <string>ClingCling uses this to pass commands to Terminal for the Run action.</string>
 </dict>
 </plist>
 PLIST

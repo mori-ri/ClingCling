@@ -1,0 +1,199 @@
+/* The Japanese text in the code is the key. Check with: swift scripts/check-localization.swift */
+
+/* Settings: pages */
+"一般" = "General";
+"プライバシー" = "Privacy";
+"アプリ別" = "Applications";
+"起動、言語、貼り付け、履歴の保存" = "Startup, language, pasting and history";
+"AI に渡す Action と送り先" = "Actions that use AI, and where they go";
+"保存しないものと、Mac の外に出すもの" = "What is never saved, and what leaves your Mac";
+"アプリごとの取り込みルール" = "Capture rules for each app";
+
+/* Settings: sidebar */
+"スポンサーになる" = "Become a Sponsor";
+"フィードバック・要望" = "Send Feedback";
+"GitHub リポジトリ" = "GitHub Repository";
+"ライセンス" = "License";
+"バージョン %@" = "Version %@";
+
+/* Settings: General */
+"ログイン時に起動" = "Launch at Login";
+"表示言語" = "Language";
+"システム既定" = "System Default";
+"再起動すると表示言語が切り替わります。" = "The language changes after a restart.";
+"今すぐ再起動" = "Restart Now";
+"ショートカット" = "Shortcut";
+"記録…" = "Record…";
+"キーを押してください（esc で取り消し）" = "Press keys (esc to cancel)";
+"取り消す" = "Cancel";
+"%@ を登録できませんでした。別の組み合わせを選んでください。" = "Couldn't set %@. Choose a different combination.";
+"⌘、⌃、⌥ のどれかを含めてください。" = "Include ⌘, ⌃ or ⌥.";
+"⌘ か ⌥ だけの組み合わせはアプリの操作や文字の入力と重なるので、⌃ か ⇧ を加えてください。" = "⌘ or ⌥ alone overlaps with app commands and typing. Add ⌃ or ⇧.";
+"このキーは使えません。" = "This key can't be used.";
+"Copy 後に直前のアプリへ貼り付ける" = "Paste into the Previous App After Copy";
+"権限" = "Permissions";
+"アクセシビリティ" = "Accessibility";
+"許可済み" = "Granted";
+"許可する…" = "Grant…";
+"自動での貼り付け、カーソル位置の取得、AI アプリへの受け渡しに使います。" = "Used for pasting automatically, finding the text cursor and handing off to AI apps.";
+"システム設定 › 一般 › ログイン項目 で ClingCling を許可してください。" = "Allow ClingCling in System Settings › General › Login Items.";
+"設定できませんでした。ClingCling.app を「アプリケーション」フォルダに置いてから、もう一度お試しください。" = "Couldn't change this. Move ClingCling.app to the Applications folder and try again.";
+"履歴" = "History";
+"Pin した Item は期間・件数の上限に関係なく残ります。履歴は Time Machine のバックアップに含めません。" = "Pinned items are kept regardless of these limits. History is excluded from Time Machine backups.";
+"保存件数" = "Items to Keep";
+"%lld 件" = "%lld items";
+"保存期間" = "Keep For";
+"1 日" = "1 day";
+"7 日" = "7 days";
+"30 日" = "30 days";
+"90 日" = "90 days";
+"無期限" = "Forever";
+"Smart Actions の学習" = "Smart Actions Learning";
+"%lld%%（%lld 回中）" = "%1$lld%% (of %2$lld)";
+"学習データ" = "Learning Data";
+"リセット" = "Reset";
+
+/* Settings: Privacy */
+"「保存しない」Item はディスクに書かず、メモリ上で 5 分間だけ保持します。" = "Items that aren't saved never reach the disk; they stay in memory for 5 minutes.";
+"パスワード・API キーを保存しない" = "Don't Save Passwords or API Keys";
+"認証コードを保存しない" = "Don't Save Verification Codes";
+"Password Manager からのコピーを無視" = "Ignore Copies from Password Managers";
+"AI への受け渡し" = "Handing Off to AI";
+"本文が Mac の外に出るのは、Local Privacy Gate を通過した Item に対してあなたが Action を選んだときだけです。Secret・個人情報・判定不能な Item は渡しません。送り先は AI のページで設定します。" = "Text leaves your Mac only when you choose an action on an item that passed the Local Privacy Gate. Secrets, personal information and items that can't be judged are never handed off. Set destinations on the AI page.";
+"説明・整える・短くする・翻訳を AI に渡す" = "Hand Off Explain, Polish, Shorten and Translate to AI";
+
+/* Settings: AI */
+"API は使いません。AI のアプリに指示と本文を貼り付けるか、URL に入れて Web 版を開きます。確認画面では ⇥ で送り先を切り替えられます。" = "No API is used. The instruction and text are pasted into an AI app, or put in a URL that opens its website. On the confirmation screen, ⇥ switches the destination.";
+"AI に渡す Action を使う" = "Use Actions That Hand Off to AI";
+"渡す前に毎回確認する" = "Confirm Every Time";
+"既定の送り先" = "Default Destination";
+"送り先" = "Destination";
+"アプリへの貼り付けにはアクセシビリティ権限が必要です。URL では {prompt}（指示 + 本文）/ {instruction} / {text} が URL エンコードされて入ります。" = "Pasting into apps needs the Accessibility permission. In URLs, {prompt} (instruction + text), {instruction} and {text} are inserted URL-encoded.";
+"アプリを追加" = "Add App";
+"URL を追加" = "Add URL";
+"既定に戻す" = "Restore Defaults";
+"新しいアプリ" = "New App";
+"新しい URL" = "New URL";
+"自作の Action" = "Custom Actions";
+"アクションメニューの末尾に上から ⌘4–9 で並びます。外部に渡せる Item（Local only 以外）にだけ表示されます。" = "These appear at the end of the action menu as ⌘4–9, only for items that may leave your Mac (not Local only).";
+"Action を追加" = "Add Action";
+"新しい Action" = "New Action";
+"指示文" = "Instruction";
+"空欄のときは薄く表示されている既定の指示文を使います。" = "When empty, the default instruction shown in gray is used.";
+"名前" = "Name";
+"（名前なし）" = "(No Name)";
+"例: 次の文章を箇条書きで 3 行に要約してください。" = "Example: Summarize the following text in three bullet points.";
+"この Action を削除" = "Delete This Action";
+"種類" = "Type";
+"アプリに貼り付け" = "Paste into an App";
+"URL を開く" = "Open a URL";
+"アプリ" = "App";
+"未選択" = "Not Selected";
+"見つかりません" = "Not Found";
+"選択…" = "Choose…";
+"⌘N で新しいチャットを開いてから貼り付ける" = "Open a New Chat with ⌘N Before Pasting";
+"貼り付け後に ↩ で送信する" = "Send with ↩ After Pasting";
+"URL テンプレート" = "URL Template";
+"この送り先を削除" = "Delete This Destination";
+
+/* Settings: Applications */
+"Password Manager はプライバシーの設定で常に除外されます。行を右クリックで削除できます。" = "Password managers are always excluded by the Privacy settings. Right-click a row to delete it.";
+"削除" = "Delete";
+"アプリ単位のルールはまだありません。" = "No app rules yet.";
+"アプリを追加（起動中のアプリから選択）" = "Add an App (from Running Apps)";
+"追加" = "Add";
+
+/* AI destinations and prompts */
+"Claude アプリ" = "Claude App";
+"ChatGPT アプリ" = "ChatGPT App";
+"Claude（Web）" = "Claude (Web)";
+"ChatGPT（Web）" = "ChatGPT (Web)";
+"説明する" = "Explain";
+"説明する（エラー）" = "Explain (Errors)";
+"文章を整える" = "Polish";
+"短くする" = "Shorten";
+"翻訳する" = "Translate";
+"次の内容が何をしているのか、簡潔に説明してください。" = "Briefly explain what the following does.";
+"次のエラーの原因として考えられることと、具体的な解決手順を簡潔に説明してください。" = "Briefly explain the likely causes of the following error and concrete steps to fix it.";
+"次の文章の文法を直し、意味・トーン・言語を変えずに読みやすく整えてください。整えた文章だけを出力してください。" = "Fix the grammar of the following text and make it easier to read without changing its meaning, tone or language. Output only the improved text.";
+"次の文章を、要点・トーン・言語を保ったまま半分程度の長さに短くしてください。短くした文章だけを出力してください。" = "Shorten the following text to about half its length, keeping its main points, tone and language. Output only the shortened text.";
+"次のテキストを翻訳してください。日本語なら自然な英語に、それ以外なら自然な日本語にしてください。訳文だけを出力してください。" = "Translate the following text. If it is in Japanese, translate it into natural English; otherwise, into natural Japanese. Output only the translation.";
+"この Item は Local only のため AI に送れません。" = "This item is Local only, so it can't be sent to AI.";
+"%@ が見つかりません。設定 › AI で送り先を確認してください。" = "%@ wasn't found. Check the destination in Settings › AI.";
+"アプリへ貼り付けるにはアクセシビリティ権限が必要です（システム設定 → プライバシーとセキュリティ → アクセシビリティ）。" = "Pasting into apps needs the Accessibility permission (System Settings → Privacy & Security → Accessibility).";
+"送り先の URL テンプレートが正しくありません。" = "The destination's URL template isn't valid.";
+"本文が長すぎて URL では送れません。アプリの送り先を使ってください。" = "The text is too long to send in a URL. Use an app destination instead.";
+
+/* Smart Actions */
+"コピー" = "Copy";
+"ブラウザで開く" = "Open in Browser";
+"Markdown リンクをコピー" = "Copy Markdown Link";
+"Web で検索" = "Search the Web";
+"Terminal で実行" = "Run in Terminal";
+"メールを作成" = "New Email";
+"マップで開く" = "Open in Maps";
+"JSON を整形" = "Format JSON";
+"JSON の構造を見る" = "Inspect JSON";
+"ダウンロードに保存" = "Save to Downloads";
+"URL を開けませんでした。" = "Couldn't open the URL.";
+"URL を解析できませんでした。" = "Couldn't parse the URL.";
+"メールを作成できませんでした。" = "Couldn't create the email.";
+"JSON として解析できませんでした。" = "Couldn't parse this as JSON.";
+"Formatted JSON（コピー済み）" = "Formatted JSON (Copied)";
+"画像が見つかりませんでした。" = "The image wasn't found.";
+"画像を保存できませんでした: %@" = "Couldn't save the image: %@";
+"Terminal で実行できませんでした: %@" = "Couldn't run in Terminal: %@";
+
+/* Popup */
+"入力して絞り込み" = "Type to filter";
+"ピン留め" = "Pinned";
+"ピン留めする" = "Pin";
+"ピン留めを外す" = "Unpin";
+"一致する履歴はありません" = "No Matching History";
+"キャプチャを一時停止中です" = "Capture Is Paused";
+"まだ履歴がありません" = "No History Yet";
+"esc で検索をクリアできます。" = "Press esc to clear the search.";
+"メニューバーから再開できます。" = "You can resume from the menu bar.";
+"⌘C でコピーするとここに並びます。\n%@ でいつでもカーソルの横に開けます。" = "Things you copy with ⌘C appear here.\nOpen this next to the cursor anytime with %@.";
+"↩ 貼り付け" = "↩ Paste";
+"→ アクション" = "→ Actions";
+"1–9 すぐ貼る" = "1–9 Quick Paste";
+"esc クリア" = "esc Clear";
+"アクション（→）" = "Actions (→)";
+"アクション" = "Actions";
+"貼り付け" = "Paste";
+"指示を付けて本文を %@ に渡します" = "Hands off the text to %@ with an instruction";
+"今後は確認しない" = "Don't Ask Again";
+"⇥ 送り先を切り替え" = "⇥ Switch Destination";
+"キャンセル" = "Cancel";
+"送る" = "Send";
+"実行" = "Run";
+"戻る" = "Back";
+"⌘C でコピーのみ" = "⌘C Copy Only";
+"新しい Terminal ウインドウで次のコマンドを実行します。" = "Runs the following command in a new Terminal window.";
+"%@ を開き、次の指示と本文 %lld 文字を新しいチャットに貼り付けて送信します。" = "Opens %1$@, then pastes the following instruction and %2$lld characters of text into a new chat and sends it.";
+"%@ を開き、次の指示と本文 %lld 文字を新しいチャットに貼り付けます。" = "Opens %1$@, then pastes the following instruction and %2$lld characters of text into a new chat.";
+"次の指示と本文 %lld 文字を URL に入れて %@ を開きます。" = "Opens %2$@ with the following instruction and %1$lld characters of text in the URL.";
+"%@ に送れませんでした" = "Couldn't Send to %@";
+"%lld分で消去" = "Clears in %lld min";
+"コピーしました（⌘V で貼り付けできます）。自動で貼り付けるには、システム設定 → プライバシーとセキュリティ → アクセシビリティ で ClingCling を許可してください。" = "Copied (paste with ⌘V). To paste automatically, allow ClingCling in System Settings → Privacy & Security → Accessibility.";
+"コピーしました（⌘V で貼り付けできます）。パスワードの入力中など、入力が保護されている間は自動で貼り付けできません。" = "Copied (paste with ⌘V). ClingCling can't paste automatically while input is protected, such as in a password field.";
+"この Item は Local only です。" = "This item is Local only.";
+"AI への受け渡しは無効です。設定 › AI で有効にできます。" = "Handing off to AI is off. Turn it on in Settings › AI.";
+"AI の送り先がありません。設定 › AI で追加してください。" = "There are no AI destinations. Add one in Settings › AI.";
+"Sensitive な一時 Item は Pin できません。" = "Temporary sensitive items can't be pinned.";
+"画像 %lld×%lld" = "Image %lld×%lld";
+
+/* Menu bar */
+"クリップボードを開く" = "Open Clipboard";
+"キャプチャを一時停止" = "Pause Capture";
+"キャプチャを再開" = "Resume Capture";
+"履歴を消去…" = "Clear History…";
+"設定…" = "Settings…";
+"フィードバック・要望を送る…" = "Send Feedback…";
+"ClingCling を終了" = "Quit ClingCling";
+"⚠️ アクセシビリティ権限を許可…" = "⚠️ Grant Accessibility Permission…";
+"履歴を消去しますか？" = "Clear History?";
+"Pin した Item は残ります。この操作は取り消せません。" = "Pinned items are kept. This can't be undone.";
+"消去" = "Clear";
+"ClingCling を起動できませんでした" = "ClingCling Couldn't Start";

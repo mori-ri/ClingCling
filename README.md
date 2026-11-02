@@ -13,7 +13,7 @@ open build/ClingCling.app
 ```
 
 - メニューバーに常駐。コピーしても通知は出ません。
-- **⌘⇧V** でテキストカーソルの横にポップアップを開く（カーソル位置が取れないアプリではマウスの位置。位置の取得にはアクセシビリティ権限が必要）
+- **⌘⇧V**（設定 › 一般 で変更可）でテキストカーソルの横にポップアップを開く（カーソル位置が取れないアプリではマウスの位置。位置の取得にはアクセシビリティ権限が必要）
   - 入力するとそのまま絞り込み（日本語入力の変換中は `↩` `↑↓` `esc` を IME に渡す。大文字小文字・全角半角・ひらがな/カタカナの違いは無視、空白区切りで AND 検索）/ `↑↓` 選択 / `↩`・クリックで貼り付け / `1–9` 履歴の n 番を貼り付け（検索語が空のとき）
   - `→` アクションメニュー / `⌘1–3` 各 Smart Action / `⌘4–9` 自作の AI Action / `⌘P` Pin / `⌘⌫` 削除 / `esc` 閉じる
 - **画像**（スクリーンショット、プレビューや Web からの画像コピー）も履歴に残る。行にサムネイル、行にマウスを載せると横に拡大プレビュー、`→` のアクションメニューにも大きめのプレビュー。`↩` で画像として貼り付け、「ダウンロードに保存」で PNG を書き出し
@@ -24,6 +24,9 @@ open build/ClingCling.app
   - 送り先の追加・編集、指示文の編集は Settings → AI。確認画面では `⇥` で送り先を切り替え
   - **自作の Action**: Settings → AI で「名前 + 指示文（+ 送り先）」を登録すると、アクションメニューの末尾に並ぶ（例: 「3 行で要約」「敬語に直す」）
 
+- 表示言語は日本語と英語に対応。既定では macOS の言語に合わせ、設定 › 一般 で選べます（再起動で反映）
+- 感想や要望は、設定のサイドバーかメニューバーの「フィードバック・要望」から GitHub Discussions へ送れます
+
 アイコンはロゴから生成します（ロゴを差し替えたら再実行）:
 
 ```sh
@@ -33,7 +36,8 @@ swift scripts/make-icons.swift Resources/Branding/ClingCling-logo.png Resources/
 開発時:
 
 ```sh
-swift test                   # Core ロジックのテスト
+scripts/test.sh              # Core ロジックのテスト
+swift scripts/check-localization.swift .   # 英訳の抜けと、使われていない英訳を検出
 swift build && .build/debug/ClingCling
 CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを PNG に書き出す（DEBUG のみ）
 ```
@@ -60,9 +64,17 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 画像 | 中身を検査できないので保存はするが常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | それ以外の text / url / code / command / error / json | 明示操作時のみ AI / Search を提示（渡す前に確認） |
 
+履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。
+
 ## MVP v0.1 の範囲外 / 既知の制限
 
 - テキストと画像が対象（ファイルは未対応）。画像は 30 MB まで、件数は履歴の上限・保存期間に含まれる
-- ショートカットは ⌘⇧V 固定（多くのアプリの「スタイルを合わせてペースト」を上書きします）
+- 既定の ⌘⇧V は、多くのアプリの「スタイルを合わせてペースト」を上書きします（設定 › 一般 で変更できます）
 - 履歴 DB は暗号化していない（ファイル権限 0600 のみ）
 - Copy Session、Semantic Search、ローカル LLM 分類、Jev 連携は未実装
+
+## ライセンス
+
+ソースコードは [MIT License](LICENSE) です。
+
+アプリアイコンとロゴ（`Resources/Branding/`、`Resources/Generated/`）は MIT License の対象外で、著作権は作者に帰属します。ClingCling のビルドや紹介のために使うのは構いませんが、fork や派生物を配布するときは別のアイコンに差し替えてください。

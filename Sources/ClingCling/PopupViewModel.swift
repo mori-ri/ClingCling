@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import ClingClingCore
 import Combine
 
@@ -290,7 +291,13 @@ final class PopupViewModel: ObservableObject {
     private func pasteWrittenContent() {
         guard ActionExecutor.requestAccessibility() else {
             mode = .list
-            notice = "コピーしました（⌘V で貼り付けできます）。自動で貼り付けるには、システム設定 → プライバシーとセキュリティ → アクセシビリティ で ClingCling を許可してください。"
+            notice = String(localized: "コピーしました（⌘V で貼り付けできます）。自動で貼り付けるには、システム設定 → プライバシーとセキュリティ → アクセシビリティ で ClingCling を許可してください。")
+            return
+        }
+        // Secure Input の間は、合成したキー入力がシステムに捨てられる
+        guard !IsSecureEventInputEnabled() else {
+            mode = .list
+            notice = String(localized: "コピーしました（⌘V で貼り付けできます）。パスワードの入力中など、入力が保護されている間は自動で貼り付けできません。")
             return
         }
         close(true)
@@ -299,7 +306,8 @@ final class PopupViewModel: ObservableObject {
     private func execute(_ action: SmartAction, item: ClipItem, position: Int) {
         model.recordAction(action, item: item, position: position)
         switch ActionExecutor.perform(action, on: item, model: model) {
-        case .close(let paste): close(paste)
+        case .close(let paste):
+            if paste { pasteWrittenContent() } else { close(false) }
         case .show(let title, let text): mode = .result(title: title, text: text)
         case .failure(let message):
             mode = .list
@@ -310,17 +318,17 @@ final class PopupViewModel: ObservableObject {
     private func startAI(_ request: AIRequest) {
         // 二重チェック: Local only の Item は UI に出ないが、念のためここでも止める
         guard request.item.externalAllowed else {
-            notice = "この Item は Local only です。"
+            notice = String(localized: "この Item は Local only です。")
             return
         }
         guard model.settings.externalAIEnabled else {
-            notice = "AI への受け渡しは無効です。Settings → AI で有効にできます。"
+            notice = String(localized: "AI への受け渡しは無効です。設定 › AI で有効にできます。")
             return
         }
         // 自作 Action の送り先が削除されていたら既定の送り先に戻す
         guard let destination = destinations.first(where: { $0.id == request.destinationID })
                 ?? model.settings.defaultDestination else {
-            notice = "AI の送り先がありません。Settings → AI で追加してください。"
+            notice = String(localized: "AI の送り先がありません。設定 › AI で追加してください。")
             return
         }
         destinationID = destination.id
@@ -370,7 +378,7 @@ final class PopupViewModel: ObservableObject {
         } catch {
             // 失敗はポップアップを開き直さず、アラートで知らせる
             let alert = NSAlert()
-            alert.messageText = "\(destination.name) に送れませんでした"
+            alert.messageText = String(localized: "\(destination.name) に送れませんでした")
             alert.informativeText = error.localizedDescription
             NSApp.activate()
             alert.runModal()
@@ -396,7 +404,7 @@ final class PopupViewModel: ObservableObject {
     func togglePinSelected() {
         guard let row = selectedRow else { return }
         if row.item.isTemporary {
-            notice = "Sensitive な一時 Item は Pin できません。"
+            notice = String(localized: "Sensitive な一時 Item は Pin できません。")
             return
         }
         model.togglePin(row.item)

@@ -24,12 +24,12 @@ enum ActionExecutor {
             return saveImage(item, model: model)
 
         case .open:
-            guard let url = normalizedURL(text) else { return .failure("URL を開けませんでした。") }
+            guard let url = normalizedURL(text) else { return .failure(String(localized: "URL を開けませんでした。")) }
             NSWorkspace.shared.open(url)
             return .close(paste: false)
 
         case .markdown:
-            guard let url = normalizedURL(text) else { return .failure("URL を解析できませんでした。") }
+            guard let url = normalizedURL(text) else { return .failure(String(localized: "URL を解析できませんでした。")) }
             model.writeToPasteboard("[\(markdownTitle(for: url))](\(url.absoluteString))")
             return .close(paste: model.settings.pasteAfterCopy)
 
@@ -41,7 +41,7 @@ enum ActionExecutor {
             return .close(paste: false)
 
         case .newMail:
-            guard let url = URL(string: "mailto:\(text)") else { return .failure("メールを作成できませんでした。") }
+            guard let url = URL(string: "mailto:\(text)") else { return .failure(String(localized: "メールを作成できませんでした。")) }
             NSWorkspace.shared.open(url)
             return .close(paste: false)
 
@@ -52,12 +52,12 @@ enum ActionExecutor {
             return .close(paste: false)
 
         case .format:
-            guard let pretty = prettyJSON(text) else { return .failure("JSON として解析できませんでした。") }
+            guard let pretty = prettyJSON(text) else { return .failure(String(localized: "JSON として解析できませんでした。")) }
             model.writeToPasteboard(pretty)
-            return .show(title: "Formatted JSON（コピー済み）", text: pretty)
+            return .show(title: String(localized: "Formatted JSON（コピー済み）"), text: pretty)
 
         case .inspect:
-            guard let summary = inspectJSON(text) else { return .failure("JSON として解析できませんでした。") }
+            guard let summary = inspectJSON(text) else { return .failure(String(localized: "JSON として解析できませんでした。")) }
             return .show(title: "JSON Inspect", text: summary)
 
         case .run:
@@ -95,6 +95,15 @@ enum ActionExecutor {
     static func requestAccessibility() -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
+    }
+
+    /// システム設定のアクセシビリティの一覧を開く。
+    /// 一度も問い合わせていないアプリは一覧に載らないので、先に問い合わせる。
+    static func openAccessibilitySettings() {
+        requestAccessibility()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Helpers
@@ -156,7 +165,7 @@ enum ActionExecutor {
 
     /// 画像を「ダウンロード」に PNG で書き出して Finder で示す
     private static func saveImage(_ item: ClipItem, model: AppModel) -> Outcome {
-        guard let data = model.imageData(for: item) else { return .failure("画像が見つかりませんでした。") }
+        guard let data = model.imageData(for: item) else { return .failure(String(localized: "画像が見つかりませんでした。")) }
         let fm = FileManager.default
         let folder = fm.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         let formatter = DateFormatter()
@@ -171,7 +180,7 @@ enum ActionExecutor {
         do {
             try data.write(to: url, options: .withoutOverwriting)
         } catch {
-            return .failure("画像を保存できませんでした: \(error.localizedDescription)")
+            return .failure(String(localized: "画像を保存できませんでした: \(error.localizedDescription)"))
         }
         NSWorkspace.shared.activateFileViewerSelecting([url])
         return .close(paste: false)
@@ -190,7 +199,7 @@ enum ActionExecutor {
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {
-            return .failure("Terminal で実行できませんでした: \(error[NSAppleScript.errorMessage] ?? "")")
+            return .failure(String(localized: "Terminal で実行できませんでした: \(error[NSAppleScript.errorMessage] ?? "")"))
         }
         return .close(paste: false)
     }

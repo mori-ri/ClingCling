@@ -62,6 +62,7 @@ final class PopupController: NSObject, NSWindowDelegate {
     /// 画像の行にマウスを載せたときの拡大プレビュー
     private let imagePreviewPanel = ImagePreviewPanel()
     private var cancellables: Set<AnyCancellable> = []
+    private var caretRetry: Task<Void, Never>?
 
     /// 下に開けるかどうかの判定に使う、ポップアップの高さの目安
     private static let expectedHeight: CGFloat = 460
@@ -100,7 +101,8 @@ final class PopupController: NSObject, NSWindowDelegate {
 
     func show() {
         vm.prepare()
-        panel.anchor = anchorNearCaret()
+        let caret = CaretLocator.caretRect()
+        panel.anchor = anchor(near: caret)
         hosting.view.layoutSubtreeIfNeeded()
         panel.setContentSize(hosting.view.fittingSize)
         panel.makeKeyAndOrderFront(nil)
@@ -110,6 +112,20 @@ final class PopupController: NSObject, NSWindowDelegate {
             // 先に奪うと ↩ で先頭の履歴が貼り付けられてしまい、日本語で検索できない。
             if let input = self.panel.firstResponder as? NSTextInputClient, input.hasMarkedText() { return event }
             return self.vm.handleKey(event) ? nil : event
+        }
+        if caret == nil { retryCaret() }
+    }
+
+    /// Electron や Chromium は、頼まれるまでアクセシビリティのツリーを作らない。
+    /// 初回は作られるまで少しかかるので、いったんマウスの位置に開き、取れたらキャレットの横へ移す。
+    private func retryCaret() {
+        guard CaretLocator.requestAccessibilityTree() else { return }
+        caretRetry = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let self, !Task.isCancelled, self.panel.isVisible,
+                  let caret = CaretLocator.caretRect() else { return }
+            self.panel.anchor = self.anchor(near: caret)
+            self.panel.setFrame(self.panel.frame, display: true)
         }
     }
 
@@ -123,6 +139,8 @@ final class PopupController: NSObject, NSWindowDelegate {
     #endif
 
     func hide() {
+        caretRetry?.cancel()
+        caretRetry = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
         imagePreviewPanel.hide()
@@ -131,8 +149,7 @@ final class PopupController: NSObject, NSWindowDelegate {
 
     /// テキストキャレットの右下に開く。キャレットが取れないアプリではマウスカーソルの位置。
     /// 下に十分な余白がなければ上に開く。
-    private func anchorNearCaret() -> PopupPanel.Anchor {
-        let caret = CaretLocator.caretRect()
+    private func anchor(near caret: NSRect?) -> PopupPanel.Anchor {
         let mouse = NSEvent.mouseLocation
         let below = caret.map { NSPoint(x: $0.minX, y: $0.minY - 4) } ?? NSPoint(x: mouse.x + 2, y: mouse.y - 4)
         let above = caret.map { NSPoint(x: $0.minX, y: $0.maxY + 4) } ?? NSPoint(x: mouse.x + 2, y: mouse.y + 4)
@@ -184,6 +201,14 @@ enum CaretLocator {
         let flipped = NSRect(x: caret.minX, y: primary.frame.maxY - caret.minY - height, width: caret.width, height: height)
         guard NSScreen.screens.contains(where: { $0.frame.intersects(flipped.insetBy(dx: -2, dy: -2)) }) else { return nil }
         return flipped
+    }
+
+    /// 前面アプリにアクセシビリティのツリーを作ってもらう。対応していないアプリなら false。
+    static func requestAccessibilityTree() -> Bool {
+        guard AXIsProcessTrusted(), let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return false }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.15)
+        return AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success
     }
 
     /// 前面アプリのフォーカス中の要素。システム全体から引くと別アプリの古い要素が返ることがあるので、

@@ -6,6 +6,8 @@ import ClingClingCore
 final class AppModel: ObservableObject {
     let settings: AppSettings
     let store: ClipStore
+    /// ポップアップを開くグローバルショートカット
+    var hotKey: HotKey?
     private let gate = PrivacyGate()
     private let ranker = ActionRanker()
     private var monitor: ClipboardMonitor!
@@ -44,6 +46,13 @@ final class AppModel: ObservableObject {
                 NSLog("ClingCling: save failed: \(error)")
             }
         }
+    }
+
+    /// ショートカットを切り替える。登録できなければ今のまま false を返す。
+    func applyShortcut(_ shortcut: Shortcut) -> Bool {
+        guard hotKey?.register(shortcut) == true else { return false }
+        settings.shortcut = shortcut
+        return true
     }
 
     func prune() {

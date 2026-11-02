@@ -97,7 +97,7 @@ enum Presentation {
     static func tag(_ item: ClipItem, now: Date = Date()) -> String? {
         guard item.isTemporary, let expires = item.expiresAt else { return nil }
         let minutes = max(1, Int(ceil(expires.timeIntervalSince(now) / 60)))
-        return "\(minutes)分で消去"
+        return String(localized: "\(minutes)分で消去")
     }
 
     /// 行のアイコン。Sensitive な Item は種類より「鍵」を優先する。
@@ -112,7 +112,7 @@ enum Presentation {
         guard !masked else { return attributed }
         for range in SearchQuery(query).ranges(in: text) {
             guard let target = Range(range, in: attributed) else { continue }
-            attributed[target].backgroundColor = selected ? Color.white.opacity(0.28) : Color.yellow.opacity(0.45)
+            attributed[target].backgroundColor = selected ? Color.white.opacity(0.28) : Theme.brandSpark.opacity(0.35)
         }
         return attributed
     }
@@ -120,20 +120,20 @@ enum Presentation {
     /// ポップアップに出す Action 名
     static func title(for action: SmartAction) -> String {
         switch action {
-        case .copy: "コピー"
-        case .open: "ブラウザで開く"
-        case .markdown: "Markdown リンクをコピー"
-        case .explain: "説明する"
-        case .search: "Web で検索"
-        case .run: "Terminal で実行"
-        case .polish: "文章を整える"
-        case .shorten: "短くする"
-        case .translate: "翻訳する"
-        case .newMail: "メールを作成"
-        case .openMaps: "マップで開く"
-        case .format: "JSON を整形"
-        case .inspect: "JSON の構造を見る"
-        case .saveImage: "ダウンロードに保存"
+        case .copy: String(localized: "コピー")
+        case .open: String(localized: "ブラウザで開く")
+        case .markdown: String(localized: "Markdown リンクをコピー")
+        case .explain: String(localized: "説明する")
+        case .search: String(localized: "Web で検索")
+        case .run: String(localized: "Terminal で実行")
+        case .polish: String(localized: "文章を整える")
+        case .shorten: String(localized: "短くする")
+        case .translate: String(localized: "翻訳する")
+        case .newMail: String(localized: "メールを作成")
+        case .openMaps: String(localized: "マップで開く")
+        case .format: String(localized: "JSON を整形")
+        case .inspect: String(localized: "JSON の構造を見る")
+        case .saveImage: String(localized: "ダウンロードに保存")
         }
     }
 }
