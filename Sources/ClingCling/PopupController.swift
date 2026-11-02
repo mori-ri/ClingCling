@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Combine
 import SwiftUI
 
 /// フォーカスを奪わずにキー入力を受けられるパネル。
@@ -58,6 +59,9 @@ final class PopupController: NSObject, NSWindowDelegate {
     private let hosting: NSHostingController<PopupView>
     private let vm: PopupViewModel
     private var keyMonitor: Any?
+    /// 画像の行にマウスを載せたときの拡大プレビュー
+    private let imagePreviewPanel = ImagePreviewPanel()
+    private var cancellables: Set<AnyCancellable> = []
 
     /// 下に開けるかどうかの判定に使う、ポップアップの高さの目安
     private static let expectedHeight: CGFloat = 460
@@ -74,6 +78,18 @@ final class PopupController: NSObject, NSWindowDelegate {
             self?.hide()
             if paste { ActionExecutor.pasteIntoFrontmostApp() }
         }
+        vm.$imagePreview.removeDuplicates().sink { [weak self] preview in
+            self?.updateImagePreview(preview)
+        }.store(in: &cancellables)
+    }
+
+    private func updateImagePreview(_ preview: PopupViewModel.ImagePreview?) {
+        guard let preview, panel.isVisible,
+              let image = vm.model.thumbnail(for: preview.item, maxPixelSize: 720) else {
+            imagePreviewPanel.hide()
+            return
+        }
+        imagePreviewPanel.show(image: image, caption: preview.item.content, rowFrame: preview.rowFrame, beside: panel)
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -90,6 +106,9 @@ final class PopupController: NSObject, NSWindowDelegate {
         panel.makeKeyAndOrderFront(nil)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self.panel else { return event }
+            // 日本語入力の変換中（未確定の文字がある間）は ↩ 確定・↑↓ 候補選択・esc 取り消し・数字を IME に渡す。
+            // 先に奪うと ↩ で先頭の履歴が貼り付けられてしまい、日本語で検索できない。
+            if let input = self.panel.firstResponder as? NSTextInputClient, input.hasMarkedText() { return event }
             return self.vm.handleKey(event) ? nil : event
         }
     }
@@ -106,6 +125,7 @@ final class PopupController: NSObject, NSWindowDelegate {
     func hide() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+        imagePreviewPanel.hide()
         panel.orderOut(nil)
     }
 

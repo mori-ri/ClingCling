@@ -100,19 +100,85 @@ public struct SecretDetector: Sendable {
     // MARK: - Entropy
 
     private static let tokenRegex = try! NSRegularExpression(pattern: #"[A-Za-z0-9+/=_\-.~]{20,}"#)
+    private static let camelWordsRegex = try! NSRegularExpression(
+        pattern: #"^(?:[A-Z]?[a-z]{2,}|[A-Z]{2,}(?![a-z])|[0-9]+|[\-_=.~+])+$"#)
     private static let uuidRegex = try! NSRegularExpression(
         pattern: #"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"#)
 
     /// 未知フォーマットの Token 対策。長くランダムに見える文字列を `highEntropy` とする。
     private func entropyFindings(in text: String, excluding existing: [SecretFinding]) -> [SecretFinding] {
         let ns = NSRange(text.startIndex..., in: text)
-        return Self.tokenRegex.matches(in: text, range: ns).compactMap { match in
-            guard let range = Range(match.range, in: text) else { return nil }
-            if existing.contains(where: { $0.range.overlaps(range) }) { return nil }
-            let token = String(text[range])
-            guard Self.looksRandom(token) else { return nil }
-            return SecretFinding(kind: .highEntropy, rule: "High Entropy String", range: range)
+        return Self.tokenRegex.matches(in: text, range: ns).flatMap { match -> [SecretFinding] in
+            guard let range = Range(match.range, in: text) else { return [] }
+            if existing.contains(where: { $0.range.overlaps(range) }) { return [] }
+            return Self.randomRanges(in: text, token: range).map {
+                SecretFinding(kind: .highEntropy, rule: "High Entropy String", range: $0)
+            }
         }
+    }
+
+    /// Token の中でランダムに見える範囲。
+    ///
+    /// URL やファイルパス（`//github.com/owner/Repo/blob/main/README.md`）は `/` 区切りの単語の並びなので、
+    /// 全体を 1 つの Token として見ると長さと文字種だけで「ランダム」と誤判定してしまう。
+    /// `/` を含むときは区切りごとに判定し、ランダムに見える区切り（ドキュメント ID など）だけを返す。
+    static func randomRanges(in text: String, token range: Range<String.Index>) -> [Range<String.Index>] {
+        let token = text[range]
+        guard token.contains("/") else { return looksRandom(String(token)) ? [range] : [] }
+
+        var segments: [Range<String.Index>] = []
+        var start = range.lowerBound
+        for index in token.indices where token[index] == "/" {
+            if start < index { segments.append(start..<index) }
+            start = token.index(after: index)
+        }
+        if start < range.upperBound { segments.append(start..<range.upperBound) }
+
+        let random = segments.filter { text[$0].count >= 16 && looksRandom(String(text[$0])) }
+        if !random.isEmpty { return random }
+        // 区切りが短いだけの Base64 などは、単語の並びより文字種が頻繁に入れ替わる。そのときは全体で判定する。
+        guard classSwitchRatio(token) >= 0.45 else { return [] }
+        return looksRandom(String(token)) ? [range] : []
+    }
+
+    /// 英数字だけを見たとき、隣り合う文字の種類（大文字・小文字・数字）が入れ替わる割合。
+    /// ランダムな Base62 / Base64 は 0.6 前後、単語やパスは 0.3 以下になりやすい。
+    static func classSwitchRatio(_ s: Substring) -> Double {
+        func kind(_ c: Character) -> Int { c.isUppercase ? 0 : c.isLowercase ? 1 : 2 }
+        let chars = s.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
+        guard chars.count > 1 else { return 0 }
+        var switches = 0
+        var previous = kind(chars[chars.startIndex])
+        for c in chars.dropFirst() {
+            let k = kind(c)
+            if k != previous { switches += 1 }
+            previous = k
+        }
+        return Double(switches) / Double(chars.count - 1)
+    }
+
+    // MARK: - Redaction
+
+    /// Secret / ランダムな Token の部分だけを伏せた文字列（一覧表示用）。個人情報は伏せない。
+    public func redact(_ text: String) -> String {
+        let ranges = SearchQuery.merged(scan(text).filter { $0.kind != .personal }.map(\.range))
+        guard !ranges.isEmpty else { return text }
+        var result = ""
+        var cursor = text.startIndex
+        for range in ranges {
+            result += text[cursor..<range.lowerBound]
+            result += Self.mask(String(text[range]))
+            cursor = range.upperBound
+        }
+        result += text[cursor...]
+        return result
+    }
+
+    /// 先頭と末尾 4 文字だけを残して伏せる。短いものは全部伏せる。
+    public static func mask(_ text: String) -> String {
+        let compact = text.trimmingCharacters(in: .whitespaces)
+        guard compact.count > 12 else { return String(repeating: "•", count: 8) }
+        return "\(compact.prefix(4))••••••••\(compact.suffix(4))"
     }
 
     static func looksRandom(_ token: String) -> Bool {
@@ -130,6 +196,10 @@ public struct SecretDetector: Sendable {
 
         // 長い Hex（ハッシュ・鍵）。Git の SHA なども含まれるが、Fail Closed のため外部送信不可側に倒す。
         if isHex { return token.count >= 32 && hasDigit }
+
+        // CamelCase の識別子や URL の語（MacBookPro2024 / ClingClingCoreTests）は「大文字 + 小文字 2 文字以上」の単語の並び。
+        // 大小混在のランダムな文字列がこの形になる確率は 20 文字で 1% 未満なので、単語の並びとみなして除外する。
+        if hasUpper, hasLower, camelWordsRegex.firstMatch(in: token, range: tokenNS) != nil { return false }
 
         let classes = [hasDigit, hasLower, hasUpper].filter { $0 }.count
         guard classes >= 2, hasDigit || token.count >= 32 else { return false }
