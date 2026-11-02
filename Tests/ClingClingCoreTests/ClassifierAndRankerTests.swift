@@ -48,7 +48,6 @@ struct ActionRankerTests {
         }
     }
 
-    // Wow Moment ケース1, 2
     @Test func defaultOrders() {
         #expect(ranker.rank(item(.error), stats: nil) == [.explain, .search, .copy])
         #expect(ranker.rank(item(.url), stats: nil) == [.open, .markdown, .copy])
@@ -66,7 +65,7 @@ struct ActionRankerTests {
         #expect(ranker.rank(item(.email, app: "com.microsoft.VSCode"), stats: nil).first == .copy)
     }
 
-    // 仕様 §10: Terminal のエラーで Search ばかり選ぶと Search が先頭に来る
+    // Terminal のエラーで Search ばかり選ぶと Search が先頭に来る
     @Test func learnsFromUsage() {
         let stats = FakeStats(app: [.search: 5], type: [.search: 5])
         #expect(ranker.rank(item(.error), stats: stats) == [.search, .explain, .copy])
@@ -165,5 +164,23 @@ struct ClipStoreTests {
         let file = try #require(store.imageURL(for: item))
         try store.prune(retentionDays: 30, historyLimit: 100)
         #expect(!FileManager.default.fileExists(atPath: file.path))
+    }
+}
+
+struct ActionConfirmationTests {
+    @Test(arguments: ["https://example.com", "HTTP://example.com/a", "www.example.com", "  https://example.com\n"])
+    func openingWebPagesNeedsNoConfirmation(_ url: String) {
+        #expect(!SmartAction.open.needsConfirmation(for: url))
+    }
+
+    @Test(arguments: ["file:///tmp/x.command", "FILE:///Applications/Calculator.app", "vscode://file/tmp/x",
+                      "slack://open", "x-apple.systempreferences:com.apple.preference.security", "ftp://example.com", ""])
+    func openingAnythingElseNeedsConfirmation(_ url: String) {
+        #expect(SmartAction.open.needsConfirmation(for: url))
+    }
+
+    @Test func runAlwaysNeedsConfirmation() {
+        #expect(SmartAction.run.needsConfirmation(for: "ls"))
+        #expect(!SmartAction.copy.needsConfirmation(for: "file:///tmp/x.command"))
     }
 }

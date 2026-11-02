@@ -25,7 +25,7 @@ enum AppLanguage: String {
     }
 }
 
-/// UserDefaults に保存するユーザー設定（仕様 §33）
+/// UserDefaults に保存するユーザー設定
 @MainActor
 final class AppSettings: ObservableObject {
     private let defaults = UserDefaults.standard

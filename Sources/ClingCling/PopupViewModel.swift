@@ -9,7 +9,7 @@ import Combine
 final class PopupViewModel: ObservableObject {
     enum Mode {
         case list
-        /// Run の前の確認
+        /// Run や、Web 以外の URL を開く前の確認
         case confirm(item: ClipItem, action: SmartAction, position: Int)
         /// AI に渡す前の確認
         case confirmAI(AIRequest)
@@ -252,7 +252,7 @@ final class PopupViewModel: ObservableObject {
             startAI(request)
             return
         }
-        if action == .run {
+        if action.needsConfirmation(for: item.content) {
             mode = .confirm(item: item, action: action, position: position)
             return
         }

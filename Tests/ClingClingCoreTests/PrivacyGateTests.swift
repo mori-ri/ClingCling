@@ -13,7 +13,7 @@ struct PrivacyGateTests {
         return nil
     }
 
-    // MVP Wow Moment ケース3: Password Manager からのコピーは保存も外部送信もしない
+    // Password Manager からのコピーは保存も外部送信もしない
     @Test func dropsPasswordManagerCopies() {
         #expect(capture("hunter2-correct-horse", source: SourceApp(bundleID: "com.1password.1password", name: "1Password")) == nil)
         #expect(capture("hunter2", source: SourceApp(bundleID: nil, name: "Bitwarden")) == nil)
@@ -51,6 +51,52 @@ struct PrivacyGateTests {
         #expect(item.externalAllowed == false)
         #expect(item.retention == .temporary)
         #expect(item.expiresAt != nil)
+    }
+
+    @Test(arguments: [
+        "POSTGRES_PASSWORD=hunter2hunter",
+        "DB_PASSWORD=abc123xyz",
+        "export MY_API_KEY=abc12345",
+        "APP_SECRET=abc12345xyz",
+        "GITHUB_TOKEN=abc12345xyz",
+        "spring.datasource.password=abc123xyz",
+        "{\"password\": \"hunter2hunter\"}",
+        "{\"api_key\":\"abcd1234efgh\"}",
+        "{\\\"password\\\": \\\"hunter2hunter\\\"}",
+        "password: \"hunter2hunter\"",
+        "パスワード: hunter2",
+        "パスワード：hunter2",
+        "パスワードは hunter2 です",
+        "暗証番号 1234",
+        "暗証番号は１２３４です",
+    ])
+    func secretAssignmentsAreTemporaryAndLocalOnly(_ text: String) throws {
+        let item = try #require(capture(text))
+        #expect(item.sensitivity == .secret)
+        #expect(item.externalAllowed == false)
+        #expect(item.retention == .temporary)
+    }
+
+    // 誤検出すると、普通の文章やコードが履歴に残らず AI にも渡せなくなる
+    @Test(arguments: [
+        "パスワードは忘れないようにしてください",
+        "パスワードは8文字以上にしてください",
+        "secretary: Alice Smith",
+        "max_tokens: 1000000",
+        "let token = try await fetchToken()",
+        "password: 必須",
+    ])
+    func textAboutSecretsIsNotASecret(_ text: String) throws {
+        let item = try #require(capture(text))
+        #expect(item.sensitivity == .normal)
+        #expect(item.externalAllowed == true)
+    }
+
+    @Test(arguments: ["09012345678", "+818012345678", "連絡先は 07012345678 です"])
+    func mobileNumbersWithoutSeparatorsAreLocalOnly(_ text: String) throws {
+        let item = try #require(capture(text))
+        #expect(item.sensitivity == .personal)
+        #expect(item.externalAllowed == false)
     }
 
     @Test func unknownHighEntropyTokenIsLocalOnly() throws {

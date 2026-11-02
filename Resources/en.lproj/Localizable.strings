@@ -197,3 +197,6 @@
 "Pin した Item は残ります。この操作は取り消せません。" = "Pinned items are kept. This can't be undone.";
 "消去" = "Clear";
 "ClingCling を起動できませんでした" = "ClingCling Couldn't Start";
+"開く" = "Open";
+"リンクを開く" = "Open Link";
+"Web ページ以外のリンクです。アプリの起動やファイルの実行につながることがあります。心当たりがある内容か確認してください。" = "This link isn't a web page. It may launch an app or run a file, so make sure you recognize it.";

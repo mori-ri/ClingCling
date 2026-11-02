@@ -52,9 +52,11 @@ struct PopupView: View {
                     }
                 }
             case let .confirm(item, action, _):
-                ConfirmView(vm: vm, item: item, title: Presentation.title(for: action), systemImage: "terminal", request: nil)
+                ConfirmView(vm: vm, item: item, title: Presentation.confirmationTitle(for: action), systemImage: action.systemImage,
+                            action: action, request: nil)
             case .confirmAI(let request):
-                ConfirmView(vm: vm, item: request.item, title: request.title, systemImage: request.systemImage, request: request)
+                ConfirmView(vm: vm, item: request.item, title: request.title, systemImage: request.systemImage,
+                            action: nil, request: request)
             case let .result(title, text):
                 ResultView(title: title, text: text, onPaste: vm.pasteResult, onBack: vm.back)
             }
@@ -399,7 +401,9 @@ struct ConfirmView: View {
     let item: ClipItem
     let title: String
     let systemImage: String
-    /// nil なら Run の確認
+    /// AI への受け渡しでは nil
+    let action: SmartAction?
+    /// nil なら `action` の実行の確認
     let request: AIRequest?
 
     var body: some View {
@@ -447,14 +451,18 @@ struct ConfirmView: View {
                 }
                 Spacer()
                 PanelButton(title: "キャンセル", key: "esc", action: vm.back)
-                PanelButton(title: request != nil ? "送る" : "実行", key: "↩", prominent: true, action: vm.confirm)
+                PanelButton(title: request != nil ? "送る" : action == .open ? "開く" : "実行", key: "↩", prominent: true, action: vm.confirm)
             }
         }
         .padding(8)
     }
 
     private var description: String {
-        guard request != nil else { return String(localized: "新しい Terminal ウインドウで次のコマンドを実行します。") }
+        guard request != nil else {
+            return action == .open
+                ? String(localized: "Web ページ以外のリンクです。アプリの起動やファイルの実行につながることがあります。心当たりがある内容か確認してください。")
+                : String(localized: "新しい Terminal ウインドウで次のコマンドを実行します。")
+        }
         guard let destination = vm.selectedDestination else { return "" }
         switch destination.kind {
         case .app:

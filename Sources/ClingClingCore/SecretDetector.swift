@@ -17,7 +17,7 @@ public struct SecretFinding: Hashable, Sendable {
     public var range: Range<String.Index>
 }
 
-/// 完全ローカルで動く Secret Detector（仕様 §16）
+/// 完全ローカルで動く Secret Detector
 public struct SecretDetector: Sendable {
     struct Rule: Sendable {
         let name: String
@@ -47,12 +47,20 @@ public struct SecretDetector: Sendable {
             rule("Private Key", #"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----"#),
             rule("Certificate", #"-----BEGIN CERTIFICATE-----"#),
             rule("Credentials in URL", #"(?i)\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:[^\s@/]+@"#),
+            // `DB_PASSWORD=…`（前に語が付く形）や `{"password": "…"}`（キーが引用符で閉じる形）も対象にする。
+            // `token` だけの語は変数名として多いので、`GITHUB_TOKEN` のように区切りが付くものに限る。
             rule("Password Assignment",
-                 #"(?i)\b(?:password|passwd|pwd|secret|api[_\-]?key|access[_\-]?token|auth[_\-]?token|client[_\-]?secret)\s*[=:]\s*['"]?[^\s'"]{6,}"#),
+                 #"(?i)(?:password|passwd|pwd|secret|api[_\-]?key|private[_\-]?key|[_\-]token|accesstoken|authtoken)(?:\\?["'])?\s*[=:]\s*(?:\\?['"])?[^\s'"\\]{6,}"#),
+            // 値は ASCII に限る。「パスワードは忘れないように」のような文章を Secret にしないため。
+            rule("Password Assignment",
+                 #"(?:パスワード|パスコード|シークレット|秘密鍵|API ?キー|アクセスキー|アクセストークン)\s*(?:[:：=＝]|は)\s*[「『"']?[!-~]{4,}"#), // no-l10n
+            rule("PIN", #"暗証番号\s*(?:[:：=＝は]\s*)?[0-9０-９]{4,}"#), // no-l10n
             rule("Sensitive URL Parameter",
                  #"(?i)[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=[^&\s]{8,}"#),
             rule("Email Address", #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#, .personal),
             rule("Phone Number", #"(?<![\d\-])(?:\+81[\- ]?|0)\d{1,4}[\- ]\d{1,4}[\- ]\d{3,4}(?![\d\-])"#, .personal),
+            // 区切りのない携帯電話番号。固定電話の 10 桁は他の数字と区別できないので対象にしない。
+            rule("Phone Number", #"(?<![\d\-])(?:\+81|0)[789]0\d{8}(?![\d\-])"#, .personal),
         ]
     }
 

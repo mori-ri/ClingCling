@@ -1,6 +1,6 @@
 import Foundation
 
-/// Clipboard Item の内容分類（仕様 §7）
+/// Clipboard Item の内容分類
 public enum ContentType: String, Codable, CaseIterable, Sendable {
     case text
     case url
@@ -40,7 +40,7 @@ public enum Sensitivity: String, Codable, Sendable, Comparable {
     public static func < (lhs: Sensitivity, rhs: Sensitivity) -> Bool { lhs.rank < rhs.rank }
 }
 
-/// 保存期間（仕様 §36 の最小構成）
+/// 保存期間
 public enum Retention: String, Codable, Sendable {
     /// メモリ上のみ・一定時間で自動削除（ディスクには書かない）
     case temporary
@@ -48,7 +48,7 @@ public enum Retention: String, Codable, Sendable {
     case pinned
 }
 
-/// アプリ単位のキャプチャポリシー（仕様 §33 Applications）
+/// アプリ単位のキャプチャポリシー
 public enum AppCapturePolicy: String, Codable, CaseIterable, Sendable {
     case capture
     case neverCapture

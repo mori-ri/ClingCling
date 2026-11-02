@@ -1,12 +1,12 @@
 import Foundation
 
-/// ローカルの利用統計（仕様 §10）
+/// ローカルの利用統計
 public protocol ActionStatsProvider {
     /// (content_type, source_app) ごとの action 選択回数
     func actionCounts(contentType: ContentType, sourceKey: String?) -> [SmartAction: Int]
 }
 
-/// Smart Action の候補生成と順位付け（仕様 §8–11）
+/// Smart Action の候補生成と順位付け
 public struct ActionRanker {
     public static let maxVisible = 3
 

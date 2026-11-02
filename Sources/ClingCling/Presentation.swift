@@ -117,6 +117,11 @@ enum Presentation {
         return attributed
     }
 
+    /// 確認画面に出す Action 名。確認が出る URL はブラウザで開くとは限らない。
+    static func confirmationTitle(for action: SmartAction) -> String {
+        action == .open ? String(localized: "リンクを開く") : title(for: action)
+    }
+
     /// ポップアップに出す Action 名
     static func title(for action: SmartAction) -> String {
         switch action {

@@ -75,7 +75,7 @@ public enum GateDecision: Sendable, Equatable {
     case capture(ClipItem)
 }
 
-/// Clipboard 処理の最前段（仕様 §15–19）。完全にローカルで動作する。
+/// Clipboard 処理の最前段。完全にローカルで動作する。
 ///
 /// 原則: 「Secret だと判定したら止める」のではなく
 /// 「安全だと判断できたものだけ外部送信可能にする」（Fail Closed）。

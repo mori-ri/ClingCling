@@ -1,6 +1,6 @@
 import Foundation
 
-/// ルールベースのローカル分類器（仕様 §7, §37）。
+/// ルールベースのローカル分類器。
 /// 将来ローカルモデルに置き換えられるよう、入出力は `ContentType` のみに保つ。
 public struct ContentClassifier: Sendable {
     public init() {}

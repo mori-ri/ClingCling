@@ -1,6 +1,6 @@
 import Foundation
 
-/// Clipboard Item に対して提示する操作（仕様 §8）
+/// Clipboard Item に対して提示する操作
 public enum SmartAction: String, Codable, CaseIterable, Sendable {
     case copy
     case open
@@ -67,5 +67,22 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
     /// `externalAllowed == false` の Item では提示しない。
     public var sendsContentExternally: Bool {
         usesAI || self == .search
+    }
+
+    /// 実行の前に内容を確認してもらう操作。
+    /// コピーした文字列は他人が用意したものかもしれない。`file:` や `vscode:` はアプリやスクリプトを起動できるので、
+    /// Web を開くだけの http(s) 以外は確認する。判定できない URL は確認する側に倒す。
+    public func needsConfirmation(for content: String) -> Bool {
+        switch self {
+        case .run:
+            return true
+        case .open:
+            let text = content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if text.hasPrefix("www.") { return false }
+            guard let scheme = URL(string: text)?.scheme else { return true }
+            return !["http", "https"].contains(scheme)
+        default:
+            return false
+        }
     }
 }

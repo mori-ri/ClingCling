@@ -1,7 +1,7 @@
 import AppKit
 import ClingClingCore
 
-/// NSPasteboard の changeCount をポーリングしてコピーを検知する（仕様 §37 Clipboard Capture）。
+/// NSPasteboard の changeCount をポーリングしてコピーを検知する。
 /// コピーのたびに通知やポップアップは出さない。
 @MainActor
 final class ClipboardMonitor {

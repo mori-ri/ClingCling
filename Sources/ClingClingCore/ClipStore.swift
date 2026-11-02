@@ -8,7 +8,7 @@ public enum StoreError: Error, CustomStringConvertible {
     }
 }
 
-/// Clipboard 履歴のローカル保存（仕様 §34–36）。
+/// Clipboard 履歴のローカル保存。
 ///
 /// - `temporary` の Item（Secret / OTP）はディスクに書かず、メモリ上でのみ保持する。
 /// - 同じ内容の再コピーは `content_hash` で重複排除し、`copy_count` / `last_copied_at` を更新する。
@@ -296,7 +296,7 @@ public final class ClipStore: ActionStatsProvider {
         return result
     }
 
-    /// 最重要 KPI: First Action Selection Rate（仕様 §43）
+    /// 最重要 KPI: First Action Selection Rate
     public func firstActionSelectionRate() -> (rate: Double, total: Int) {
         var total = 0, first = 0
         try? query("SELECT COUNT(*), SUM(CASE WHEN position = 0 THEN 1 ELSE 0 END) FROM action_events", []) { stmt in

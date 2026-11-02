@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import Combine
 
-/// メニューバーアイコンとメニュー（仕様 §32）
+/// メニューバーアイコンとメニュー
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
