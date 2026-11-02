@@ -17,15 +17,19 @@ final class ShortcutRecorder: ObservableObject {
         note = nil
         model.hotKey?.suspend()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // メニューバーから開いたポップアップへの入力は奪わない
+            if event.window is PopupPanel { return event }
             self?.handle(event, model: model)
             return nil
         }
     }
 
     func stop(model: AppModel) {
+        guard isRecording else { return }
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         isRecording = false
+        note = nil
         model.hotKey?.resume()
     }
 
@@ -42,8 +46,17 @@ final class ShortcutRecorder: ObservableObject {
     }
 
     func apply(_ shortcut: Shortcut, model: AppModel) {
-        note = model.applyShortcut(shortcut)
-            ? nil : String(localized: "\(shortcut.displayName) を登録できませんでした。別の組み合わせを選んでください。")
+        note = model.applyShortcut(shortcut) ? nil : Self.failureMessage(for: shortcut)
+    }
+
+    /// 起動時に登録できなかったショートカットを知らせる
+    func reportUnregistered(model: AppModel) {
+        guard !isRecording, model.hotKey?.isRegistered == false else { return }
+        note = Self.failureMessage(for: model.settings.shortcut)
+    }
+
+    private static func failureMessage(for shortcut: Shortcut) -> String {
+        String(localized: "\(shortcut.displayName) を登録できませんでした。別の組み合わせを選んでください。")
     }
 
     private static func message(for problem: Shortcut.Problem) -> String {
@@ -66,7 +79,8 @@ struct ShortcutRow: View {
     }
 
     var body: some View {
-        Group {
+        // Group だと下の修飾子が子ごとに付き、補足の行が消えただけで onDisappear が走って記録が止まる
+        VStack(alignment: .leading, spacing: 0) {
             LabeledRow("ショートカット") {
                 HStack(spacing: 8) {
                     Picker("ショートカット", selection: Binding(get: { settings.shortcut },
@@ -88,6 +102,7 @@ struct ShortcutRow: View {
             }
             if let note = recorder.note { NoteRow(note, color: .red) }
         }
+        .onAppear { recorder.reportUnregistered(model: model) }
         // 記録中に別のページやアプリへ移ったら、元のショートカットに戻す
         .onDisappear { recorder.stop(model: model) }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in

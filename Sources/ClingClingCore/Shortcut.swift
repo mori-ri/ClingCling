@@ -40,7 +40,7 @@ public struct Shortcut: Codable, Hashable, Sendable {
         Shortcut(keyCode: v, modifiers: [.control, .shift]),
     ]
 
-    /// 例: ⌘⇧V。macOS のメニューと同じ ⌃⌥⇧⌘ の順に並べる。
+    /// 例: ⇧⌘V。macOS のメニューと同じ ⌃⌥⇧⌘ の順に並べる。
     public var displayName: String {
         var symbols = ""
         if modifiers.contains(.control) { symbols += "⌃" }

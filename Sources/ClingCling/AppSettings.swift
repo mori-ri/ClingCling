@@ -145,6 +145,12 @@ final class AppSettings: ObservableObject {
     /// 「ログイン時に起動」を変更できなかったときの案内
     @Published private(set) var launchAtLoginNote: String?
 
+    /// システム設定で許可されたら、案内を消して画面に反映する
+    func refreshLaunchAtLogin() {
+        if SMAppService.mainApp.status == .enabled { launchAtLoginNote = nil }
+        objectWillChange.send()
+    }
+
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {

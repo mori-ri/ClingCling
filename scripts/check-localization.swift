@@ -1,5 +1,5 @@
 // Checks that every Japanese UI string in Sources has an English translation, and that every
-// translation is still used. Run with `swift scripts/check-localization.swift` (also run by lint.sh).
+// translation is still used. Run with `swift scripts/check-localization.swift`.
 //
 // The Japanese text is the localization key, so a missing entry in
 // Resources/en.lproj/Localizable.strings silently shows Japanese to English users.

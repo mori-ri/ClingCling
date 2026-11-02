@@ -366,7 +366,7 @@ struct ActionMenu: View {
         case .paste: String(localized: "貼り付け")
         case .smart(let action, _): Presentation.title(for: action)
         case .custom(let custom, _): custom.name
-        case .pin(let isPinned): isPinned ? String(localized: "ピン留めを外す") : String(localized: "ピン留め")
+        case .pin(let isPinned): isPinned ? String(localized: "ピン留めを外す") : String(localized: "ピン留めする")
         case .delete: String(localized: "削除")
         }
     }

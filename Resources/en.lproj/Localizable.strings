@@ -147,6 +147,7 @@
 /* Popup */
 "入力して絞り込み" = "Type to filter";
 "ピン留め" = "Pinned";
+"ピン留めする" = "Pin";
 "ピン留めを外す" = "Unpin";
 "一致する履歴はありません" = "No Matching History";
 "キャプチャを一時停止中です" = "Capture Is Paused";

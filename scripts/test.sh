@@ -8,6 +8,6 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 for attempt in 1 2 3; do
     if swift build --build-tests >/dev/null 2>&1; then break; fi
-    if [[ $attempt == 3 ]]; then swift build --build-tests; exit 1; fi
+    if [[ $attempt == 3 ]]; then swift build --build-tests || exit 1; fi
 done
 swift test --skip-build "$@"

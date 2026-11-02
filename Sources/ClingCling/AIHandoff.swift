@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import ClingClingCore
 
 /// AI の渡し先。API は直接呼ばず、AI のアプリか Web に「指示 + 本文」を渡してそちらで処理してもらう。
@@ -208,6 +209,12 @@ enum AIHandoff {
             }
             // 起動直後は入力欄の準備ができていないことがある
             try? await Task.sleep(for: .milliseconds(wasRunning ? 300 : 2000))
+            // Secure Input の間は、合成したキー入力がシステムに捨てられる
+            guard !IsSecureEventInputEnabled() else {
+                NSLog("ClingCling: secure input is on, cannot paste into \(destination.name)")
+                NSSound.beep()
+                return
+            }
             if destination.newChat {
                 ActionExecutor.postKey(0x2D, flags: .maskCommand) // ⌘N
                 try? await Task.sleep(for: .milliseconds(600))

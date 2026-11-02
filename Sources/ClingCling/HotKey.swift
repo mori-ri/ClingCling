@@ -9,6 +9,9 @@ final class HotKey {
     private var current: Shortcut?
     private let action: () -> Void
 
+    /// 今ショートカットが効いているか
+    var isRegistered: Bool { hotKeyRef != nil }
+
     init(action: @escaping () -> Void) {
         self.action = action
 

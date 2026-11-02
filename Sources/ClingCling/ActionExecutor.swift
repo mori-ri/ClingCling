@@ -97,8 +97,10 @@ enum ActionExecutor {
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    /// システム設定のアクセシビリティの一覧を開く
+    /// システム設定のアクセシビリティの一覧を開く。
+    /// 一度も問い合わせていないアプリは一覧に載らないので、先に問い合わせる。
     static func openAccessibilitySettings() {
+        requestAccessibility()
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }

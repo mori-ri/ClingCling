@@ -323,6 +323,7 @@ private struct GeneralPage: View {
         // システム設定で許可して戻ってきたときに反映する
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             form.hasAccessibility = AXIsProcessTrusted()
+            settings.refreshLaunchAtLogin()
         }
     }
 }
