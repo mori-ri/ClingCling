@@ -110,6 +110,14 @@ struct PopupView: View {
                                         } action: { layout.selectedRowY = $0 }
                                     }
                                 }
+                                // 画像の拡大プレビューを行の横に出すための位置
+                                .background {
+                                    if vm.hoveredID == row.id {
+                                        Color.clear.onGeometryChange(for: CGRect.self) {
+                                            $0.frame(in: .named("popup"))
+                                        } action: { vm.hoveredRowFrame = $0 }
+                                    }
+                                }
                                 // 行のクリック = 直前のアプリへ貼り付け（› ボタンのクリックはボタン側が優先）
                                 .onTapGesture {
                                     vm.selection = index
@@ -248,7 +256,7 @@ struct ClipRow: View {
             }
 
             Text(Presentation.highlighted(Presentation.preview(item), query: query,
-                                          masked: item.sensitivity >= .suspicious, selected: selected))
+                                          masked: Presentation.isFullyMasked(item), selected: selected))
                 .font(.system(size: 13, design: Presentation.isMonospaced(item.contentType) ? .monospaced : .default))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -541,7 +549,7 @@ private struct PanelButton: View {
     }
 }
 
-private extension View {
+extension View {
     /// メニューと同じ半透明の面・細い縁・影
     func popupSurface(cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

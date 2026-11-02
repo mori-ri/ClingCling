@@ -25,23 +25,56 @@ enum Presentation {
     }
 
     /// 一覧に出す本文。Secret / 未知の Token は肩越しに見られないようマスクする。
+    /// - 既知の Secret を含む・本文のほとんどが Token → 全体を伏せる
+    /// - ランダムに見える文字列（ID など）を含むだけ → その部分だけを伏せる
+    ///   （URL や Markdown の中にランダムな ID が 1 つあるだけで全体が読めなくならないように）
     static func preview(_ item: ClipItem) -> String {
-        let collapsed = item.content
+        if let cached = previewCache[item.id], cached.hash == item.contentHash { return cached.text }
+        let text = makePreview(item)
+        // 一時 Item（OTP など）は期限後にメモリへ残らないようキャッシュしない
+        guard !item.isTemporary else { return text }
+        if previewCache.count > 2_000 { previewCache.removeAll() }
+        previewCache[item.id] = (item.contentHash, text)
+        return text
+    }
+
+    /// `preview` の結果（再描画のたびに Secret 検出をやり直さないため）
+    private static var previewCache: [UUID: (hash: String, text: String)] = [:]
+    private static let detector = SecretDetector()
+    /// 1 行目から最大 3 行・この文字数までを検査して表示する
+    private static let scanLimit = 2_000
+    private static let displayLimit = 300
+
+    private static func makePreview(_ item: ClipItem) -> String {
+        var collapsed = item.content
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .prefix(3)
             .joined(separator: " ⏎ ")
         guard item.sensitivity >= .suspicious, item.contentType != .verificationCode else {
-            return String(collapsed.prefix(300))
+            return String(collapsed.prefix(displayLimit))
         }
-        return mask(collapsed)
+        if isFullyMasked(item) { return mask(collapsed) }
+        if collapsed.count > scanLimit {
+            // 切った位置で Token が途中までしか残らないと検出から漏れるので、末尾の書きかけの Token ごと落とす
+            collapsed = String(collapsed.prefix(scanLimit))
+            while let last = collapsed.last, last.isLetter || last.isNumber || "+/=_-.~".contains(last) {
+                collapsed.removeLast()
+            }
+        }
+        return String(detector.redact(collapsed).prefix(displayLimit))
+    }
+
+    /// 本文全体を伏せる Item。一致箇所のハイライトもしない。
+    /// 既知の Secret は規則に一致した部分の外（秘密鍵の本体など）にも秘密が続くことがあるので、部分マスクにしない。
+    static func isFullyMasked(_ item: ClipItem) -> Bool {
+        guard item.contentType != .verificationCode else { return false }
+        return item.sensitivity == .secret || (item.sensitivity >= .suspicious && item.contentType == .credential)
     }
 
     static func mask(_ text: String) -> String {
-        let compact = text.trimmingCharacters(in: .whitespaces)
-        guard compact.count > 12 else { return String(repeating: "•", count: 8) }
-        return "\(compact.prefix(4))••••••••\(compact.suffix(4))"
+        SecretDetector.mask(text)
     }
 
     private static let relative: RelativeDateTimeFormatter = {
@@ -72,14 +105,15 @@ enum Presentation {
         item.sensitivity >= .suspicious ? "lock" : icon(for: item.contentType)
     }
 
-    /// 一致箇所をハイライトした本文。マスク済みの本文は一致位置が無意味なので強調しない。
+    /// 一致箇所をハイライトした本文。全体をマスクした本文は一致位置が無意味なので強調しない。
+    /// 検索と同じく、大文字小文字・全角半角・ひらがなとカタカナの違いを無視して探す。
     static func highlighted(_ text: String, query: String, masked: Bool, selected: Bool) -> AttributedString {
         var attributed = AttributedString(text)
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !masked, !q.isEmpty, let range = attributed.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) else {
-            return attributed
+        guard !masked else { return attributed }
+        for range in SearchQuery(query).ranges(in: text) {
+            guard let target = Range(range, in: attributed) else { continue }
+            attributed[target].backgroundColor = selected ? Color.white.opacity(0.28) : Color.yellow.opacity(0.45)
         }
-        attributed[range].backgroundColor = selected ? Color.white.opacity(0.28) : Color.yellow.opacity(0.45)
         return attributed
     }
 

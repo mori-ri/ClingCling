@@ -60,14 +60,32 @@ final class PopupViewModel: ObservableObject {
     /// `rows` の先頭からこの件数がピン留め（検索中は 0）
     @Published private(set) var pinnedCount = 0
     @Published var selection = 0 { didSet { if selection != oldValue { actionsOpen = false } } }
-    @Published var mode: Mode = .list
+    @Published var mode: Mode = .list { didSet { if case .list = mode {} else { hideImagePreview() } } }
     @Published var notice: String?
     @Published var dontAskAgain = false
-    @Published var hoveredID: UUID?
-    @Published var actionsOpen = false { didSet { if actionsOpen != oldValue { actionIndex = 0 } } }
+    @Published var hoveredID: UUID? { didSet { if hoveredID != oldValue { scheduleImagePreview() } } }
+    /// マウスを載せている行の位置（"popup" 座標系）。画像プレビューを行の横に出すのに使う。
+    var hoveredRowFrame: CGRect = .zero { didSet { if hoveredRowFrame != oldValue { moveImagePreview() } } }
+    /// マウスを載せている画像 Item の拡大プレビュー
+    @Published private(set) var imagePreview: ImagePreview?
+    @Published var actionsOpen = false {
+        didSet {
+            if actionsOpen != oldValue { actionIndex = 0 }
+            // アクションメニューにもプレビューが出るので重ねない
+            if actionsOpen { hideImagePreview() }
+        }
+    }
     @Published var actionIndex = 0
     /// 確認画面で選んでいる AI の送り先
     @Published var destinationID: UUID?
+
+    struct ImagePreview: Equatable {
+        let item: ClipItem
+        /// 行の位置（"popup" 座標系）
+        let rowFrame: CGRect
+    }
+
+    private var imagePreviewTask: Task<Void, Never>?
 
     let model: AppModel
     /// ポップアップを閉じる（`paste` なら直前のアプリへ貼り付け）
@@ -88,6 +106,8 @@ final class PopupViewModel: ObservableObject {
         mode = .list
         notice = nil
         actionsOpen = false
+        hoveredID = nil
+        hideImagePreview()
         if query.isEmpty { reload(resetSelection: true) } else { query = "" }
     }
 
@@ -104,9 +124,44 @@ final class PopupViewModel: ObservableObject {
         if resetSelection { selection = 0 }
         selection = min(selection, max(rows.count - 1, 0))
         if rows.isEmpty { actionsOpen = false }
+        // 削除などで行が消えたらプレビューも閉じる
+        if let preview = imagePreview, !rows.contains(where: { $0.id == preview.item.id }) { hideImagePreview() }
     }
 
     var selectedRow: Row? { rows.indices.contains(selection) ? rows[selection] : nil }
+
+    // MARK: - Image preview
+
+    /// 画像の行にマウスを少し留めたら拡大プレビューを出す。通り過ぎるだけでは出さない。
+    private func scheduleImagePreview() {
+        imagePreviewTask?.cancel()
+        guard let id = hoveredID, !actionsOpen, case .list = mode,
+              let item = rows.first(where: { $0.id == id })?.item, item.image != nil else {
+            imagePreview = nil
+            return
+        }
+        // すでに別の画像を出しているなら、待たずに切り替える
+        if imagePreview != nil {
+            imagePreview = ImagePreview(item: item, rowFrame: hoveredRowFrame)
+            return
+        }
+        imagePreviewTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard let self, !Task.isCancelled, self.hoveredID == id, !self.actionsOpen else { return }
+            self.imagePreview = ImagePreview(item: item, rowFrame: self.hoveredRowFrame)
+        }
+    }
+
+    private func moveImagePreview() {
+        guard let preview = imagePreview, preview.item.id == hoveredID else { return }
+        imagePreview = ImagePreview(item: preview.item, rowFrame: hoveredRowFrame)
+    }
+
+    private func hideImagePreview() {
+        imagePreviewTask?.cancel()
+        imagePreviewTask = nil
+        if imagePreview != nil { imagePreview = nil }
+    }
 
     func moveSelection(_ delta: Int) {
         guard !rows.isEmpty else { return }

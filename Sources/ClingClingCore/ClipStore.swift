@@ -137,31 +137,47 @@ public final class ClipStore: ActionStatsProvider {
         return item
     }
 
-    /// 新しい順。`query` は本文・アプリ名の部分一致。
+    /// 新しい順。`query` は本文・アプリ名の部分一致（`SearchQuery`: 大文字小文字・全角半角・かなの違いを無視）。
     public func recent(limit: Int = 200, query: String = "", pinnedOnly: Bool = false, now: Date = Date()) throws -> [ClipItem] {
-        var clauses: [String] = []
-        var params: [Any?] = []
-        if pinnedOnly {
-            clauses.append("retention = 'pinned'")
+        let search = SearchQuery(query)
+        let whereSQL = pinnedOnly ? "retention = 'pinned'" : "1"
+        var items: [ClipItem]
+        if search.isEmpty {
+            items = try fetch(where: whereSQL + " ORDER BY last_copied_at DESC LIMIT \(limit)", [])
+        } else {
+            // SQLite の LIKE は ASCII 以外の大文字小文字や かな・全角半角を区別してしまうので、Swift 側で絞り込む。
+            // 履歴は件数上限（既定 500 件）があるので全件を見ても軽い。
+            items = try fetch(where: whereSQL + " ORDER BY last_copied_at DESC", [])
+                .filter { matches(search, $0) }
+            items = Array(items.prefix(limit))
         }
-        let q = query.trimmingCharacters(in: .whitespaces)
-        if !q.isEmpty {
-            clauses.append("(content LIKE ? ESCAPE '\\' OR source_name LIKE ? ESCAPE '\\' OR content_type = ?)")
-            let like = "%" + q.replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "%", with: "\\%")
-                .replacingOccurrences(of: "_", with: "\\_") + "%"
-            params += [like, like, q.lowercased()]
-        }
-        let whereSQL = clauses.isEmpty ? "1" : clauses.joined(separator: " AND ")
-        var items = try fetch(where: whereSQL + " ORDER BY last_copied_at DESC LIMIT \(limit)", params)
 
         if !pinnedOnly {
             let live = ephemeral.filter { ($0.expiresAt ?? .distantFuture) > now }
-                .filter { q.isEmpty || $0.content.localizedCaseInsensitiveContains(q) }
+                .filter { search.isEmpty || matches(search, $0) }
             items = (items + live).sorted { $0.lastCopiedAt > $1.lastCopiedAt }
             items = Array(items.prefix(limit))
         }
         return items
+    }
+
+    /// 正規化済みの検索対象（本文 + アプリ名）。打鍵ごとに作り直さないよう内容のハッシュで覚えておく。
+    /// 一時 Item（Secret / OTP）は期限後にメモリへ残らないようキャッシュしない。
+    private var searchTextCache: [String: String] = [:]
+
+    private func matches(_ search: SearchQuery, _ item: ClipItem) -> Bool {
+        let key = item.contentHash + "\u{1F}" + (item.source.name ?? "")
+        let text: String
+        if let cached = searchTextCache[key] {
+            text = cached
+        } else {
+            text = SearchQuery.normalize(item.content + "\n" + (item.source.name ?? ""))
+            if !item.isTemporary {
+                if searchTextCache.count > 4_000 { searchTextCache.removeAll() }
+                searchTextCache[key] = text
+            }
+        }
+        return search.matches(searchText: text, contentType: item.contentType)
     }
 
     public func setPinned(_ id: UUID, _ pinned: Bool) throws {
@@ -181,12 +197,14 @@ public final class ClipStore: ActionStatsProvider {
 
     public func delete(_ id: UUID) throws {
         ephemeral.removeAll { $0.id == id }
+        searchTextCache.removeAll()
         try run("DELETE FROM clips WHERE id = ?", [id.uuidString])
         removeOrphanImages()
     }
 
     public func clear(keepPinned: Bool = true) throws {
         ephemeral.removeAll()
+        searchTextCache.removeAll()
         try run(keepPinned ? "DELETE FROM clips WHERE retention != 'pinned'" : "DELETE FROM clips", [])
         try exec("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")
         removeOrphanImages()
