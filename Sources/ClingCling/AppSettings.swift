@@ -105,13 +105,19 @@ final class AppSettings: ObservableObject {
 
     // MARK: Launch at Login（.app バンドルとして起動している場合のみ有効）
 
+    /// 「ログイン時に起動」を変更できなかったときの案内
+    @Published private(set) var launchAtLoginNote: String?
+
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {
             do {
                 if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                launchAtLoginNote = SMAppService.mainApp.status == .requiresApproval
+                    ? "システム設定 › 一般 › ログイン項目 で ClingCling を許可してください。" : nil
             } catch {
                 NSLog("ClingCling: launch at login failed: \(error)")
+                launchAtLoginNote = "設定できませんでした。ClingCling.app を「アプリケーション」フォルダに置いてから、もう一度お試しください。"
             }
             objectWillChange.send()
         }

@@ -104,3 +104,16 @@ struct RedactionTests {
         #expect(detector.redact(text) == "トークンは Zq8v••••••••5gA0 です。連絡先 mori@example.com")
     }
 }
+
+struct BackupExclusionTests {
+    @Test func historyDirectoryIsExcludedFromBackup() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClingCling-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        _ = try ClipStore(path: directory.appendingPathComponent("clingcling.sqlite"))
+
+        let values = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(values.isExcludedFromBackup == true)
+    }
+}

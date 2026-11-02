@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import ClingClingCore
 import Combine
 
@@ -293,13 +294,20 @@ final class PopupViewModel: ObservableObject {
             notice = "コピーしました（⌘V で貼り付けできます）。自動で貼り付けるには、システム設定 → プライバシーとセキュリティ → アクセシビリティ で ClingCling を許可してください。"
             return
         }
+        // Secure Input の間は、合成したキー入力がシステムに捨てられる
+        guard !IsSecureEventInputEnabled() else {
+            mode = .list
+            notice = "コピーしました（⌘V で貼り付けできます）。パスワードの入力中など、入力が保護されている間は自動で貼り付けできません。"
+            return
+        }
         close(true)
     }
 
     private func execute(_ action: SmartAction, item: ClipItem, position: Int) {
         model.recordAction(action, item: item, position: position)
         switch ActionExecutor.perform(action, on: item, model: model) {
-        case .close(let paste): close(paste)
+        case .close(let paste):
+            if paste { pasteWrittenContent() } else { close(false) }
         case .show(let title, let text): mode = .result(title: title, text: text)
         case .failure(let message):
             mode = .list

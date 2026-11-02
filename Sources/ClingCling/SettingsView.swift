@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import ClingClingCore
 import SwiftUI
 
@@ -45,6 +46,7 @@ final class SettingsFormState: ObservableObject {
     @Published var page = SettingsPageID.general
     @Published var stats = (rate: 0.0, total: 0)
     @Published var selectedApp = ""
+    @Published var hasAccessibility = AXIsProcessTrusted()
 
     init() {
         #if DEBUG
@@ -208,9 +210,10 @@ private struct GeneralPage: View {
 
     var body: some View {
         SettingsPage {
-            SettingsSection(footer: "貼り付けにはアクセシビリティ権限が必要です。") {
+            SettingsSection {
                 ToggleRow("ログイン時に起動", isOn: Binding(get: { settings.launchAtLogin },
                                                     set: { settings.launchAtLogin = $0 }))
+                if let note = settings.launchAtLoginNote { NoteRow(note, color: .red) }
                 LabeledRow("ショートカット") {
                     Text("⌘⇧V").foregroundStyle(.secondary)
                 }
@@ -219,7 +222,13 @@ private struct GeneralPage: View {
                         if on { ActionExecutor.requestAccessibility() }
                     }
             }
-            SettingsSection(title: "履歴", footer: "Pin した Item は期間・件数の上限に関係なく残ります。") {
+            SettingsSection(title: "権限") {
+                PermissionRow(title: "アクセシビリティ", granted: form.hasAccessibility) {
+                    ActionExecutor.openAccessibilitySettings()
+                }
+                NoteRow("自動での貼り付け、カーソル位置の取得、AI アプリへの受け渡しに使います。")
+            }
+            SettingsSection(title: "履歴", footer: "Pin した Item は期間・件数の上限に関係なく残ります。履歴は Time Machine のバックアップに含めません。") {
                 PickerRow("保存件数", selection: $settings.historyLimit) {
                     ForEach([100, 500, 1000, 5000], id: \.self) { Text("\($0) 件").tag($0) }
                 }
@@ -244,7 +253,36 @@ private struct GeneralPage: View {
                 }
             }
         }
-        .onAppear { form.stats = model.store.firstActionSelectionRate() }
+        .onAppear {
+            form.stats = model.store.firstActionSelectionRate()
+            form.hasAccessibility = AXIsProcessTrusted()
+        }
+        // システム設定で許可して戻ってきたときに反映する
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            form.hasAccessibility = AXIsProcessTrusted()
+        }
+    }
+}
+
+private struct PermissionRow: View {
+    let title: String
+    let granted: Bool
+    let open: () -> Void
+
+    var body: some View {
+        SettingsRow {
+            HStack(spacing: 8) {
+                Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(granted ? .green : .orange)
+                Text(title)
+                Spacer(minLength: 12)
+                if granted {
+                    Text("許可済み").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Button("許可する…", action: open)
+                }
+            }
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Combine
 
 /// メニューバーアイコンとメニュー（仕様 §32）
@@ -9,6 +10,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let openPopup: () -> Void
     private let openSettings: () -> Void
     private var pauseItem: NSMenuItem!
+    private var permissionItem: NSMenuItem!
+    private var permissionSeparator: NSMenuItem!
     private var cancellable: AnyCancellable?
 
     init(model: AppModel, openPopup: @escaping () -> Void, openSettings: @escaping () -> Void) {
@@ -19,6 +22,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
+        permissionItem = NSMenuItem(title: "⚠️ アクセシビリティ権限を許可…", action: #selector(openAccessibilitySettings), keyEquivalent: "")
+        permissionSeparator = .separator()
+        menu.addItem(permissionItem)
+        menu.addItem(permissionSeparator)
         let open = NSMenuItem(title: "Open Clipboard", action: #selector(openClipboard), keyEquivalent: "v")
         open.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(open)
@@ -46,6 +53,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         pauseItem?.title = paused ? "Resume Capture" : "Pause Capture"
     }
 
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        let granted = AXIsProcessTrusted()
+        permissionItem.isHidden = granted
+        permissionSeparator.isHidden = granted
+    }
+
+    @objc private func openAccessibilitySettings() { ActionExecutor.openAccessibilitySettings() }
     @objc private func openClipboard() { openPopup() }
     @objc private func settings() { openSettings() }
     @objc private func togglePause() { model.settings.isPaused.toggle() }

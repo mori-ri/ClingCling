@@ -97,6 +97,13 @@ enum ActionExecutor {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// システム設定のアクセシビリティの一覧を開く
+    static func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     // MARK: - Helpers
 
     static func normalizedURL(_ text: String) -> URL? {

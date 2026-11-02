@@ -130,6 +130,26 @@ struct PickerRow<Selection: Hashable, Options: View>: View {
     }
 }
 
+/// カードの中の小さな補足
+struct NoteRow: View {
+    let text: String
+    var color: Color? = nil
+
+    init(_ text: String, color: Color? = nil) {
+        self.text = text
+        self.color = color
+    }
+
+    var body: some View {
+        SettingsRow {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 /// 折りたたんだ編集欄の中の 1 項目
 struct EditorField<Control: View>: View {
     let title: String

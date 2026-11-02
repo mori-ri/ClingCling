@@ -33,7 +33,7 @@ swift scripts/make-icons.swift Resources/Branding/ClingCling-logo.png Resources/
 開発時:
 
 ```sh
-swift test                   # Core ロジックのテスト
+scripts/test.sh              # Core ロジックのテスト
 swift build && .build/debug/ClingCling
 CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを PNG に書き出す（DEBUG のみ）
 ```
@@ -59,6 +59,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 個人情報（メール・電話番号）、住所、Local Only アプリ、分類不能 | 保存するが Local only |
 | 画像 | 中身を検査できないので保存はするが常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | それ以外の text / url / code / command / error / json | 明示操作時のみ AI / Search を提示（渡す前に確認） |
+
+履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。
 
 ## MVP v0.1 の範囲外 / 既知の制限
 

@@ -27,6 +27,7 @@ public final class ClipStore: ActionStatsProvider {
         if let dir = path?.deletingLastPathComponent() {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             imagesDirectory = dir.appendingPathComponent("images", isDirectory: true)
+            Self.excludeFromBackup(dir)
         } else {
             imagesDirectory = fm.temporaryDirectory.appendingPathComponent("ClingCling-\(UUID().uuidString)/images", isDirectory: true)
         }
@@ -42,6 +43,15 @@ public final class ClipStore: ActionStatsProvider {
     }
 
     deinit { sqlite3_close(db) }
+
+    /// 履歴を Time Machine に残さない。残すと、消した履歴がバックアップから読めてしまう。
+    /// 失敗しても履歴の保存はできるので、起動は止めない。
+    private static func excludeFromBackup(_ directory: URL) {
+        var directory = directory
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? directory.setResourceValues(values)
+    }
 
     public static func defaultURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
