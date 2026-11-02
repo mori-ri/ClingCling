@@ -149,7 +149,7 @@ struct PopupView: View {
         return min(total, Self.maxListHeight)
     }
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
@@ -181,15 +181,15 @@ struct PopupView: View {
         return vm.model.settings.isPaused ? "pause.circle" : "doc.on.clipboard"
     }
 
-    private var emptyTitle: String {
+    private var emptyTitle: LocalizedStringKey {
         if !vm.query.isEmpty { return "一致する履歴はありません" }
         return vm.model.settings.isPaused ? "キャプチャを一時停止中です" : "まだ履歴がありません"
     }
 
-    private var emptyMessage: String {
+    private var emptyMessage: LocalizedStringKey {
         if !vm.query.isEmpty { return "esc で検索をクリアできます。" }
         if vm.model.settings.isPaused { return "メニューバーから再開できます。" }
-        return "⌘C でコピーするとここに並びます。\n⌘⇧V でいつでもカーソルの横に開けます。"
+        return "⌘C でコピーするとここに並びます。\n\(vm.model.settings.shortcut.displayName) でいつでもカーソルの横に開けます。"
     }
 
     private func noticeView(_ text: String) -> some View {
@@ -363,11 +363,11 @@ struct ActionMenu: View {
 
     private func title(for entry: PopupViewModel.MenuEntry) -> String {
         switch entry {
-        case .paste: "貼り付け"
+        case .paste: String(localized: "貼り付け")
         case .smart(let action, _): Presentation.title(for: action)
         case .custom(let custom, _): custom.name
-        case .pin(let isPinned): isPinned ? "ピン留めを外す" : "ピン留め"
-        case .delete: "削除"
+        case .pin(let isPinned): isPinned ? String(localized: "ピン留めを外す") : String(localized: "ピン留め")
+        case .delete: String(localized: "削除")
         }
     }
 
@@ -454,14 +454,15 @@ struct ConfirmView: View {
     }
 
     private var description: String {
-        guard request != nil else { return "新しい Terminal ウインドウで次のコマンドを実行します。" }
+        guard request != nil else { return String(localized: "新しい Terminal ウインドウで次のコマンドを実行します。") }
         guard let destination = vm.selectedDestination else { return "" }
         switch destination.kind {
         case .app:
-            return "\(destination.name) を開き、次の指示と本文 \(item.content.count) 文字を新しいチャットに貼り付けます"
-                + (destination.autoSend ? "（そのまま送信）。" : "。")
+            return destination.autoSend
+                ? String(localized: "\(destination.name) を開き、次の指示と本文 \(item.content.count) 文字を新しいチャットに貼り付けて送信します。")
+                : String(localized: "\(destination.name) を開き、次の指示と本文 \(item.content.count) 文字を新しいチャットに貼り付けます。")
         case .url:
-            return "次の指示と本文 \(item.content.count) 文字を URL に入れて \(destination.name) を開きます。"
+            return String(localized: "次の指示と本文 \(item.content.count) 文字を URL に入れて \(destination.name) を開きます。")
         }
     }
 
@@ -473,7 +474,7 @@ struct ConfirmView: View {
                 }
             }
         } label: {
-            Text(vm.selectedDestination?.name ?? "送り先")
+            Text(vm.selectedDestination?.name ?? String(localized: "送り先"))
                 .font(.system(size: 11))
         }
         .menuStyle(.borderlessButton)
@@ -526,7 +527,7 @@ private struct PanelDivider: View {
 }
 
 private struct PanelButton: View {
-    let title: String
+    let title: LocalizedStringKey
     let key: String
     var prominent = false
     let action: () -> Void

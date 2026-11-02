@@ -25,16 +25,16 @@ struct AIDestination: Codable, Hashable, Identifiable {
 
     static let claudeApp = AIDestination(
         id: UUID(uuidString: "6A0C3E2B-1F0E-4C55-9C0E-0000000000C1")!,
-        name: "Claude アプリ", kind: .app, bundleID: "com.anthropic.claudefordesktop")
+        name: String(localized: "Claude アプリ"), kind: .app, bundleID: "com.anthropic.claudefordesktop")
     static let chatGPTApp = AIDestination(
         id: UUID(uuidString: "6A0C3E2B-1F0E-4C55-9C0E-0000000000C2")!,
-        name: "ChatGPT アプリ", kind: .app, bundleID: "com.openai.chat")
+        name: String(localized: "ChatGPT アプリ"), kind: .app, bundleID: "com.openai.chat")
     static let claudeWeb = AIDestination(
         id: UUID(uuidString: "6A0C3E2B-1F0E-4C55-9C0E-0000000000C3")!,
-        name: "Claude（Web）", kind: .url, urlTemplate: "https://claude.ai/new?q={prompt}")
+        name: String(localized: "Claude（Web）"), kind: .url, urlTemplate: "https://claude.ai/new?q={prompt}")
     static let chatGPTWeb = AIDestination(
         id: UUID(uuidString: "6A0C3E2B-1F0E-4C55-9C0E-0000000000C4")!,
-        name: "ChatGPT（Web）", kind: .url, urlTemplate: "https://chatgpt.com/?q={prompt}")
+        name: String(localized: "ChatGPT（Web）"), kind: .url, urlTemplate: "https://chatgpt.com/?q={prompt}")
 
     static let builtIns = [claudeApp, chatGPTApp, claudeWeb, chatGPTWeb]
 
@@ -76,21 +76,21 @@ enum AIPrompt: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .explain: "説明する"
-        case .explainError: "説明する（エラー）"
-        case .polish: "文章を整える"
-        case .shorten: "短くする"
-        case .translate: "翻訳する"
+        case .explain: String(localized: "説明する")
+        case .explainError: String(localized: "説明する（エラー）")
+        case .polish: String(localized: "文章を整える")
+        case .shorten: String(localized: "短くする")
+        case .translate: String(localized: "翻訳する")
         }
     }
 
     var defaultInstruction: String {
         switch self {
-        case .explain: "次の内容が何をしているのか、簡潔に説明してください。"
-        case .explainError: "次のエラーの原因として考えられることと、具体的な解決手順を簡潔に説明してください。"
-        case .polish: "次の文章の文法を直し、意味・トーン・言語を変えずに読みやすく整えてください。整えた文章だけを出力してください。"
-        case .shorten: "次の文章を、要点・トーン・言語を保ったまま半分程度の長さに短くしてください。短くした文章だけを出力してください。"
-        case .translate: "次のテキストを翻訳してください。日本語なら自然な英語に、それ以外なら自然な日本語にしてください。訳文だけを出力してください。"
+        case .explain: String(localized: "次の内容が何をしているのか、簡潔に説明してください。")
+        case .explainError: String(localized: "次のエラーの原因として考えられることと、具体的な解決手順を簡潔に説明してください。")
+        case .polish: String(localized: "次の文章の文法を直し、意味・トーン・言語を変えずに読みやすく整えてください。整えた文章だけを出力してください。")
+        case .shorten: String(localized: "次の文章を、要点・トーン・言語を保ったまま半分程度の長さに短くしてください。短くした文章だけを出力してください。")
+        case .translate: String(localized: "次のテキストを翻訳してください。日本語なら自然な英語に、それ以外なら自然な日本語にしてください。訳文だけを出力してください。")
         }
     }
 
@@ -119,12 +119,12 @@ enum AIHandoff {
 
         var errorDescription: String? {
             switch self {
-            case .localOnly: "この Item は Local only のため AI に送れません。"
-            case .appNotFound(let name): "\(name) が見つかりません。Settings → AI で送り先を確認してください。"
+            case .localOnly: String(localized: "この Item は Local only のため AI に送れません。")
+            case .appNotFound(let name): String(localized: "\(name) が見つかりません。設定 › AI で送り先を確認してください。")
             case .needsAccessibility:
-                "アプリへ貼り付けるにはアクセシビリティ権限が必要です（システム設定 → プライバシーとセキュリティ → アクセシビリティ）。"
-            case .invalidTemplate: "送り先の URL テンプレートが正しくありません。"
-            case .tooLong: "本文が長すぎて URL では送れません。アプリの送り先を使ってください。"
+                String(localized: "アプリへ貼り付けるにはアクセシビリティ権限が必要です（システム設定 → プライバシーとセキュリティ → アクセシビリティ）。")
+            case .invalidTemplate: String(localized: "送り先の URL テンプレートが正しくありません。")
+            case .tooLong: String(localized: "本文が長すぎて URL では送れません。アプリの送り先を使ってください。")
             }
         }
     }

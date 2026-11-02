@@ -197,7 +197,7 @@ public struct PrivacyGate: Sendable {
         let hash = ContentHash.sha256(image.png)
         return .capture(ClipItem(
             createdAt: input.date,
-            content: "画像 \(image.width)×\(image.height)",
+            content: String(localized: "画像 \(image.width)×\(image.height)"),
             contentHash: hash,
             contentType: .image,
             source: input.source,

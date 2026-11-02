@@ -6,7 +6,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: AppModel!
     private var popup: PopupController!
     private var statusBar: StatusBarController!
-    private var hotKey: HotKey?
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -15,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model = try AppModel(settings: settings)
         } catch {
             let alert = NSAlert()
-            alert.messageText = "ClingCling を起動できませんでした"
+            alert.messageText = String(localized: "ClingCling を起動できませんでした")
             alert.informativeText = "\(error)"
             alert.runModal()
             NSApp.terminate(nil)
@@ -28,9 +27,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBar = StatusBarController(model: model,
                                         openPopup: { [weak self] in self?.popup.show() },
                                         openSettings: { [weak self] in self?.showSettings() })
-        hotKey = HotKey { [weak self] in
+        let hotKey = HotKey { [weak self] in
             DispatchQueue.main.async { self?.popup.toggle() }
         }
+        hotKey.register(settings.shortcut)
+        model.hotKey = hotKey
         model.start()
 
         #if DEBUG

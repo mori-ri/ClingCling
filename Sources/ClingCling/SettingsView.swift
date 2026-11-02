@@ -11,7 +11,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .general: "一般"
         case .ai: "AI"
@@ -20,9 +20,9 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
         }
     }
 
-    var subtitle: String {
+    var subtitle: LocalizedStringKey {
         switch self {
-        case .general: "起動、貼り付け、履歴の保存"
+        case .general: "起動、言語、貼り付け、履歴の保存"
         case .ai: "AI に渡す Action と送り先"
         case .privacy: "保存しないものと、Mac の外に出すもの"
         case .applications: "アプリごとの取り込みルール"
@@ -133,6 +133,18 @@ private struct Sidebar: View {
 
             Spacer(minLength: 16)
 
+            VStack(alignment: .leading, spacing: 2) {
+                SidebarLink(title: "スポンサーになる", symbol: "heart", url: ProjectLinks.sponsors)
+                SidebarLink(title: "フィードバック・要望", symbol: "bubble.left", url: ProjectLinks.newFeedback)
+                SidebarLink(title: "GitHub リポジトリ", symbol: "chevron.left.forwardslash.chevron.right",
+                            url: ProjectLinks.repository)
+                if let license = ProjectLinks.license {
+                    SidebarLink(title: "ライセンス", symbol: "doc.text", url: license)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 12)
+
             if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
                 Text("バージョン \(version)")
                     .font(.system(size: 11))
@@ -183,6 +195,42 @@ private struct SidebarItem: View {
     }
 }
 
+/// ブラウザなどでページを開く。設定のページと見分けられるよう `SidebarItem` より控えめにする。
+private struct SidebarLink: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    let url: URL
+    @StateObject private var hover = HoverState()
+
+    var body: some View {
+        Button {
+            ProjectLinks.open(url)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12))
+                    .frame(width: 18)
+                Text(title)
+                    .font(.system(size: 12))
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .opacity(hover.isHovered ? 1 : 0)
+            }
+            .foregroundStyle(hover.isHovered ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background {
+                if hover.isHovered { RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.hover) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover.isHovered = $0 }
+        .help(url.isFileURL ? "" : url.absoluteString)
+    }
+}
+
 private struct PageHeader: View {
     let page: SettingsPageID
 
@@ -214,9 +262,18 @@ private struct GeneralPage: View {
                 ToggleRow("ログイン時に起動", isOn: Binding(get: { settings.launchAtLogin },
                                                     set: { settings.launchAtLogin = $0 }))
                 if let note = settings.launchAtLoginNote { NoteRow(note, color: .red) }
-                LabeledRow("ショートカット") {
-                    Text("⌘⇧V").foregroundStyle(.secondary)
+                PickerRow("表示言語", selection: $settings.appLanguage) {
+                    Text("システム既定").tag(AppLanguage.system)
+                    // どちらの表示言語からも探せるよう、言語の名前はその言語で書く
+                    Text(verbatim: "日本語").tag(AppLanguage.japanese) // no-l10n
+                    Text(verbatim: "English").tag(AppLanguage.english)
                 }
+                if settings.appLanguage != settings.appLanguageAtLaunch {
+                    LabeledRow("再起動すると表示言語が切り替わります。") {
+                        Button("今すぐ再起動") { AppRelauncher.relaunch() }
+                    }
+                }
+                ShortcutRow(settings: settings, model: model)
                 ToggleRow("Copy 後に直前のアプリへ貼り付ける", isOn: $settings.pasteAfterCopy)
                     .onChange(of: settings.pasteAfterCopy) { _, on in
                         if on { ActionExecutor.requestAccessibility() }
@@ -242,8 +299,14 @@ private struct GeneralPage: View {
             }
             SettingsSection(title: "Smart Actions の学習") {
                 LabeledRow("First Action Selection Rate") {
-                    Text(form.stats.total == 0 ? "—" : String(format: "%.0f%%（%d 回中）", form.stats.rate * 100, form.stats.total))
-                        .foregroundStyle(.secondary)
+                    Group {
+                        if form.stats.total == 0 {
+                            Text(verbatim: "—")
+                        } else {
+                            Text("\(Int((form.stats.rate * 100).rounded()))%（\(form.stats.total) 回中）")
+                        }
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 LabeledRow("学習データ") {
                     Button("リセット") {
@@ -265,7 +328,7 @@ private struct GeneralPage: View {
 }
 
 private struct PermissionRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let granted: Bool
     let open: () -> Void
 
@@ -334,11 +397,11 @@ private struct AIPage: View {
                 SettingsRow {
                     HStack {
                         Button("アプリを追加") {
-                            settings.aiDestinations.append(AIDestination(name: "新しいアプリ", kind: .app))
+                            settings.aiDestinations.append(AIDestination(name: String(localized: "新しいアプリ"), kind: .app))
                         }
                         Button("URL を追加") {
                             settings.aiDestinations.append(AIDestination(
-                                name: "新しい URL", kind: .url, urlTemplate: "https://example.com/?q={prompt}"))
+                                name: String(localized: "新しい URL"), kind: .url, urlTemplate: "https://example.com/?q={prompt}"))
                         }
                         Spacer()
                         Button("既定に戻す") { settings.aiDestinations = AIDestination.builtIns }
@@ -355,7 +418,7 @@ private struct AIPage: View {
                 }
                 SettingsRow {
                     Button("Action を追加") {
-                        settings.customAIActions.append(CustomAIAction(name: "新しい Action", instruction: ""))
+                        settings.customAIActions.append(CustomAIAction(name: String(localized: "新しい Action"), instruction: ""))
                     }
                 }
             }
@@ -413,7 +476,7 @@ private struct CustomActionEditor: View {
                 }
                 .padding(.top, 8)
             } label: {
-                Label(custom.name.isEmpty ? "（名前なし）" : custom.name, systemImage: CustomAIAction.systemImage)
+                Label(custom.name.isEmpty ? String(localized: "（名前なし）") : custom.name, systemImage: CustomAIAction.systemImage)
             }
         }
     }
@@ -449,7 +512,7 @@ private struct DestinationEditor: View {
                     case .app:
                         EditorField("アプリ") {
                             HStack {
-                                Text(installedName ?? (destination.bundleID.isEmpty ? "未選択" : "見つかりません"))
+                                Text(installedName ?? (destination.bundleID.isEmpty ? String(localized: "未選択") : String(localized: "見つかりません")))
                                     .foregroundStyle(installedName == nil ? .red : .secondary)
                                 Button("選択…", action: chooseApp)
                             }
@@ -480,7 +543,7 @@ private struct DestinationEditor: View {
         guard panel.runModal() == .OK, let url = panel.url,
               let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
         destination.bundleID = bundleID
-        if destination.name == "新しいアプリ" {
+        if destination.name == String(localized: "新しいアプリ") {
             destination.name = FileManager.default.displayName(atPath: url.path)
         }
     }

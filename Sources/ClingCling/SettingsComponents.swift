@@ -21,8 +21,8 @@ struct SettingsPage<Content: View>: View {
 
 /// 見出しと説明が付いたカード
 struct SettingsSection<Content: View>: View {
-    var title: String? = nil
-    var footer: String? = nil
+    var title: LocalizedStringKey? = nil
+    var footer: LocalizedStringKey? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -71,10 +71,14 @@ struct SettingsRow<Content: View>: View {
 
 /// 左にラベル、右に操作部品
 struct LabeledRow<Control: View>: View {
-    let title: String
+    let title: Text
     @ViewBuilder var control: Control
 
-    init(_ title: String, @ViewBuilder control: () -> Control) {
+    init(_ title: LocalizedStringKey, @ViewBuilder control: () -> Control) {
+        self.init(Text(title), control: control)
+    }
+
+    init(_ title: Text, @ViewBuilder control: () -> Control) {
         self.title = title
         self.control = control()
     }
@@ -82,7 +86,7 @@ struct LabeledRow<Control: View>: View {
     var body: some View {
         SettingsRow {
             HStack(spacing: 12) {
-                Text(title)
+                title
                 Spacer(minLength: 12)
                 control
             }
@@ -91,17 +95,17 @@ struct LabeledRow<Control: View>: View {
 }
 
 struct ToggleRow: View {
-    let title: String
+    let title: Text
     @Binding var isOn: Bool
 
-    init(_ title: String, isOn: Binding<Bool>) {
-        self.title = title
+    init(_ title: LocalizedStringKey, isOn: Binding<Bool>) {
+        self.title = Text(title)
         self._isOn = isOn
     }
 
     var body: some View {
         LabeledRow(title) {
-            Toggle(title, isOn: $isOn)
+            Toggle(isOn: $isOn) { title }
                 .labelsHidden()
                 .toggleStyle(.switch)
         }
@@ -109,11 +113,21 @@ struct ToggleRow: View {
 }
 
 struct PickerRow<Selection: Hashable, Options: View>: View {
-    let title: String
+    let title: Text
     @Binding var selection: Selection
     @ViewBuilder var options: Options
 
+    init(_ title: LocalizedStringKey, selection: Binding<Selection>, @ViewBuilder options: () -> Options) {
+        self.init(verbatim: Text(title), selection: selection, options: options)
+    }
+
+    /// アプリ名など、翻訳しない文字列をラベルにする
+    @_disfavoredOverload
     init(_ title: String, selection: Binding<Selection>, @ViewBuilder options: () -> Options) {
+        self.init(verbatim: Text(verbatim: title), selection: selection, options: options)
+    }
+
+    private init(verbatim title: Text, selection: Binding<Selection>, @ViewBuilder options: () -> Options) {
         self.title = title
         self._selection = selection
         self.options = options()
@@ -121,8 +135,10 @@ struct PickerRow<Selection: Hashable, Options: View>: View {
 
     var body: some View {
         LabeledRow(title) {
-            Picker(title, selection: $selection) {
+            Picker(selection: $selection) {
                 options
+            } label: {
+                title
             }
             .labelsHidden()
             .fixedSize()
@@ -132,17 +148,24 @@ struct PickerRow<Selection: Hashable, Options: View>: View {
 
 /// カードの中の小さな補足
 struct NoteRow: View {
-    let text: String
+    let text: Text
     var color: Color? = nil
 
+    init(_ text: LocalizedStringKey, color: Color? = nil) {
+        self.text = Text(text)
+        self.color = color
+    }
+
+    /// エラーの文面など、翻訳済みの文字列を出す
+    @_disfavoredOverload
     init(_ text: String, color: Color? = nil) {
-        self.text = text
+        self.text = Text(verbatim: text)
         self.color = color
     }
 
     var body: some View {
         SettingsRow {
-            Text(text)
+            text
                 .font(.caption)
                 .foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
                 .fixedSize(horizontal: false, vertical: true)
@@ -152,10 +175,10 @@ struct NoteRow: View {
 
 /// 折りたたんだ編集欄の中の 1 項目
 struct EditorField<Control: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder var control: Control
 
-    init(_ title: String, @ViewBuilder control: () -> Control) {
+    init(_ title: LocalizedStringKey, @ViewBuilder control: () -> Control) {
         self.title = title
         self.control = control()
     }
