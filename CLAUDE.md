@@ -63,7 +63,6 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 - `docs/assets/site.js` のデモは `ContentClassifier`・`SecretDetector`・`ActionRanker` の規則を移したもの。規則や Action 名を変えたら、こちらとページの一覧も直す。
 - 見出しに新しい漢字を使ったら `scripts/subset-site-font.sh` を実行する。
 - ダウンロードのボタンは `releases/latest/download/ClingCling.dmg` を指す。この名前の dmg は `scripts/release.sh` の upload が添付する。
-- `docs/assets/shot-*.webp` は実際のポップアップの画像。`CLINGCLING_SNAPSHOT` で書き出した PNG を `cwebp -lossless` で変換する。履歴は `CFFIXED_USER_HOME` で分けて、ページの見本と同じ内容を入れる。画面を変えたら撮り直す。
 
 ## 規約
 
