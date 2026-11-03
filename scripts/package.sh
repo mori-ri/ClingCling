@@ -31,9 +31,14 @@ ARCH="$(uname -m)"
 DMG="build/ClingCling-$VERSION-$ARCH.dmg"
 [[ "$NOTARIZE" != 0 ]] || DMG="build/ClingCling-$VERSION-$ARCH-local.dmg"
 
+# 一時ファイルはここにまとめ、途中で失敗しても終了時に消す
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
 make_dmg() {
-  local staging
-  staging="$(mktemp -d)"
+  local staging="$WORK/dmg"
+  rm -rf "$staging"
+  mkdir "$staging"
   ditto build/ClingCling.app "$staging/ClingCling.app"
   ln -s /Applications "$staging/Applications"
   rm -f "$1"
@@ -85,10 +90,12 @@ else
 
   # dmg はアプリと同じ証明書で署名する。名前だと期限切れと更新後の証明書が同名のときに曖昧になるので、
   # アプリの署名から証明書を取り出し、そのハッシュで指定する。
-  CERTS="$(mktemp -d)"
-  codesign -d --extract-certificates="$CERTS/cert" build/ClingCling.app 2>/dev/null
-  IDENTITY="$(shasum -a 1 "$CERTS/cert0" | awk '{ print toupper($1) }')"
-  rm -rf "$CERTS"
+  # codesign -d は Executable= の行を stderr に出すので捨てる。失敗したときは理由を出して止まる。
+  codesign -d --extract-certificates="$WORK/cert" build/ClingCling.app 2>/dev/null || {
+    echo "error: アプリの署名から証明書を取り出せませんでした。" >&2
+    exit 1
+  }
+  IDENTITY="$(shasum -a 1 "$WORK/cert0" | awk '{ print toupper($1) }')"
 
   # 失敗しても、署名や公証を終えていない dmg がリリースの名前で残らないよう、別名で作ってから移す
   UNSIGNED="build/ClingCling-$VERSION-$ARCH-unnotarized.dmg"
