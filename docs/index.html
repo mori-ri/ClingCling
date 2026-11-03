@@ -68,7 +68,7 @@
   <div class="wrap">
     <div class="head">
       <h2>コピーしたものごとに、提案が変わる</h2>
-      <p class="lead">左にあるほどおすすめの操作です。使うほど、よく選ぶ操作が前に来ます。学習も統計も Mac の中だけで行います。</p>
+      <p class="lead">どの種類でも <kbd>↩</kbd> でそのまま貼り付けられます。そのほかに出る操作は、左にあるほどおすすめです。使うほど、よく選ぶ操作が前に来ます。学習も統計も Mac の中だけで行います。</p>
     </div>
 
     <table class="kinds">
@@ -76,16 +76,16 @@
         <tr><th scope="col">種類</th><th scope="col">コピーしたもの</th><th scope="col">提案される操作</th></tr>
       </thead>
       <tbody>
-        <tr><th scope="row">URL</th><td class="sample"><code>https://example.com/report/2026-q3</code></td><td><ul class="suggest"><li>ブラウザで開く</li><li>Markdown リンクをコピー</li><li>コピー</li></ul></td></tr>
-        <tr><th scope="row">エラー</th><td class="sample"><code>TypeError: x is not a function</code></td><td><ul class="suggest"><li>説明する</li><li>Web で検索</li><li>コピー</li></ul></td></tr>
-        <tr><th scope="row">コマンド</th><td class="sample"><code>git log --oneline -5</code></td><td><ul class="suggest"><li>コピー</li><li>Terminal で実行</li><li>説明する</li></ul></td></tr>
-        <tr><th scope="row">文章</th><td class="sample"><code class="plain">来週の打ち合わせは水曜 15 時からです。</code></td><td><ul class="suggest"><li>コピー</li><li>文章を整える</li><li>短くする</li></ul></td></tr>
-        <tr><th scope="row">JSON</th><td class="sample"><code>{"app":"ClingCling","local":true}</code></td><td><ul class="suggest"><li>コピー</li><li>JSON を整形</li><li>JSON の構造を見る</li></ul></td></tr>
-        <tr><th scope="row">コード</th><td class="sample"><code>const total = items.length;</code></td><td><ul class="suggest"><li>コピー</li><li>説明する</li></ul></td></tr>
-        <tr><th scope="row">メール</th><td class="sample"><code>hello@example.com</code></td><td><ul class="suggest"><li>コピー</li><li>メールを作成</li></ul></td></tr>
-        <tr><th scope="row">住所</th><td class="sample"><code class="plain">〒100-0001 東京都千代田区千代田 1-1</code></td><td><ul class="suggest"><li>コピー</li><li>マップで開く</li></ul></td></tr>
-        <tr><th scope="row">認証コード</th><td class="sample"><code>482913</code></td><td><ul class="suggest"><li>コピー</li><li class="aside">5 分で消えます</li></ul></td></tr>
-        <tr><th scope="row">画像</th><td class="sample"><em>スクリーンショット、Web やプレビューの画像</em></td><td><ul class="suggest"><li>コピー</li><li>ダウンロードに保存</li></ul></td></tr>
+        <tr><th scope="row">URL</th><td class="sample"><code>https://example.com/report/2026-q3</code></td><td><ul class="suggest"><li>ブラウザで開く</li><li>Markdown リンクをコピー</li></ul></td></tr>
+        <tr><th scope="row">エラー</th><td class="sample"><code>TypeError: x is not a function</code></td><td><ul class="suggest"><li>説明する</li><li>Web で検索</li></ul></td></tr>
+        <tr><th scope="row">コマンド</th><td class="sample"><code>git log --oneline -5</code></td><td><ul class="suggest"><li>Terminal で実行</li><li>説明する</li></ul></td></tr>
+        <tr><th scope="row">文章</th><td class="sample"><code class="plain">来週の打ち合わせは水曜 15 時からです。</code></td><td><ul class="suggest"><li>文章を整える</li><li>短くする</li></ul></td></tr>
+        <tr><th scope="row">JSON</th><td class="sample"><code>{"app":"ClingCling","local":true}</code></td><td><ul class="suggest"><li>JSON を整形</li><li>JSON の構造を見る</li></ul></td></tr>
+        <tr><th scope="row">コード</th><td class="sample"><code>const total = items.length;</code></td><td><ul class="suggest"><li>説明する</li></ul></td></tr>
+        <tr><th scope="row">メール</th><td class="sample"><code>hello@example.com</code></td><td><ul class="suggest"><li>メールを作成</li></ul></td></tr>
+        <tr><th scope="row">住所</th><td class="sample"><code class="plain">〒100-0001 東京都千代田区千代田 1-1</code></td><td><ul class="suggest"><li>マップで開く</li></ul></td></tr>
+        <tr><th scope="row">認証コード</th><td class="sample"><code>482913</code></td><td><ul class="suggest"><li class="aside">貼り付けだけ。5 分で消えます</li></ul></td></tr>
+        <tr><th scope="row">画像</th><td class="sample"><em>スクリーンショット、Web やプレビューの画像</em></td><td><ul class="suggest"><li>ダウンロードに保存</li></ul></td></tr>
       </tbody>
     </table>
     <p class="try mac note">ここで試せます。見本を押して <kbd>⌘C</kbd>、続けて <kbd>⌘⇧V</kbd> を押すと、その場でポップアップが開きます。このページのどの文章でも同じです。判定はブラウザの中で動き、コピーした文字はどこにも送りません。</p>

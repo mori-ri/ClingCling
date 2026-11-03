@@ -140,7 +140,7 @@
     return "text";
   };
 
-  // SecretDetector.swift のうち、形式で判定する規則
+  // SecretDetector.swift
   const SECRETS = [
     /\b(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\b/,
     /aws_?secret_?access_?key\s*[=:]\s*\S+/i,
@@ -154,18 +154,125 @@
     /\bbearer\s+[A-Za-z0-9\-._~+/]{16,}=*/i,
     /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
     /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/,
+    /-----BEGIN CERTIFICATE-----/,
     /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]+@/i,
     /(?:password|passwd|pwd|secret|api[_-]?key|private[_-]?key|[_-]token|accesstoken|authtoken)(?:\\?["'])?\s*[=:]\s*(?:\\?['"])?[^\s'"\\]{6,}/i,
     /(?:パスワード|パスコード|シークレット|秘密鍵|API ?キー|アクセスキー|アクセストークン)\s*(?:[:：=＝]|は)\s*[「『"']?[!-~]{4,}/,
+    /暗証番号\s*(?:[:：=＝は]\s*)?[0-9０-９]{4,}/,
+    /[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=[^&\s]{8,}/i,
   ];
   const PERSONAL = [
     /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
     /(?<![\d-])(?:\+81[- ]?|0)\d{1,4}[- ]\d{1,4}[- ]\d{3,4}(?![\d-])/,
+    /(?<![\d-])(?:\+81|0)[789]0\d{8}(?![\d-])/,
   ];
+  const CARD = /(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)/;
+  const TOKEN = /[A-Za-z0-9+/=_\-.~]{20,}/;
+  const CAMEL_WORDS = /^(?:[A-Z]?[a-z]{2,}|[A-Z]{2,}(?![a-z])|[0-9]+|[-_=.~+])+$/;
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  // 一致した範囲 [開始, 終了) の一覧
+  const spans = (re, s) => [...s.matchAll(new RegExp(re.source, re.flags + "g"))].map((m) => [m.index, m.index + m[0].length]);
+
+  const luhn = (digits) =>
+    [...digits].reverse().reduce((sum, c, i) => {
+      const d = i % 2 ? Number(c) * 2 : Number(c);
+      return sum + (d > 9 ? d - 9 : d);
+    }, 0) % 10 === 0;
+
+  const entropy = (s) => {
+    const chars = [...s];
+    const freq = new Map();
+    for (const c of chars) freq.set(c, (freq.get(c) || 0) + 1);
+    return [...freq.values()].reduce((acc, n) => acc - (n / chars.length) * Math.log2(n / chars.length), 0);
+  };
+
+  // SecretDetector.looksRandom
+  const looksRandom = (t) => {
+    if (UUID.test(t)) return false;
+    if (t.includes(".") && t.split(".").every((p) => /^[A-Za-z]*$/.test(p) || p.length < 12)) return false;
+    const hasDigit = /\d/.test(t);
+    const hasLower = /[a-z]/.test(t);
+    const hasUpper = /[A-Z]/.test(t);
+    if (/^[0-9A-Fa-f]+$/.test(t)) return t.length >= 32 && hasDigit;
+    if (hasUpper && hasLower && CAMEL_WORDS.test(t)) return false;
+    const classes = [hasDigit, hasLower, hasUpper].filter(Boolean).length;
+    if (classes < 2 || !(hasDigit || t.length >= 32)) return false;
+    return entropy(t) >= (t.length >= 40 ? 4.0 : 3.6);
+  };
+
+  // SecretDetector.classSwitchRatio
+  const switchRatio = (s) => {
+    const chars = s.replace(/[^A-Za-z0-9]/g, "");
+    if (chars.length < 2) return 0;
+    const kind = (c) => (/[A-Z]/.test(c) ? 0 : /[a-z]/.test(c) ? 1 : 2);
+    let switches = 0;
+    for (let i = 1; i < chars.length; i++) if (kind(chars[i]) !== kind(chars[i - 1])) switches++;
+    return switches / (chars.length - 1);
+  };
+
+  // SecretDetector.randomRanges。`/` を含む Token は区切りごとに見る
+  const randomRanges = (s, [from, to]) => {
+    const token = s.slice(from, to);
+    if (!token.includes("/")) return looksRandom(token) ? [[from, to]] : [];
+    const segments = [];
+    let start = from;
+    for (let i = from; i < to; i++) {
+      if (s[i] !== "/") continue;
+      if (start < i) segments.push([start, i]);
+      start = i + 1;
+    }
+    if (start < to) segments.push([start, to]);
+    const random = segments.filter(([a, b]) => b - a >= 16 && looksRandom(s.slice(a, b)));
+    if (random.length) return random;
+    return switchRatio(token) >= 0.45 && looksRandom(token) ? [[from, to]] : [];
+  };
+
+  // SecretDetector.scan。kind は secret（既知の形式）、random（ランダムに見える）、personal
+  const scan = (s) => {
+    const found = [];
+    for (const re of SECRETS) for (const r of spans(re, s)) found.push({ kind: "secret", r });
+    for (const re of PERSONAL) for (const r of spans(re, s)) found.push({ kind: "personal", r });
+    for (const r of spans(CARD, s)) {
+      const digits = s.slice(...r).replace(/\D/g, "");
+      if (digits.length >= 13 && digits.length <= 19 && luhn(digits)) found.push({ kind: "secret", r });
+    }
+    for (const t of spans(TOKEN, s)) {
+      if (found.some((f) => f.r[0] < t[1] && t[0] < f.r[1])) continue;
+      for (const r of randomRanges(s, t)) found.push({ kind: "random", r });
+    }
+    return found;
+  };
+
+  // PrivacyGate.isMostlySecret
+  const mostlySecret = (s, found) => {
+    const total = s.replace(/\s/g, "").length;
+    const secretChars = found
+      .filter((f) => f.kind !== "personal")
+      .reduce((n, f) => n + s.slice(...f.r).replace(/\s/g, "").length, 0);
+    return total > 0 && secretChars / total >= 0.6;
+  };
 
   const mask = (s) => {
-    const c = s.trim();
-    return [...c].length > 12 ? `${c.slice(0, 4)}••••••••${c.slice(-4)}` : "••••••••";
+    const c = [...s.trim()];
+    return c.length > 12 ? `${c.slice(0, 4).join("")}••••••••${c.slice(-4).join("")}` : "••••••••";
+  };
+
+  // SecretDetector.redact。ランダムに見える部分だけを伏せる
+  const redact = (s) => {
+    const merged = [];
+    for (const [a, b] of scan(s).filter((f) => f.kind !== "personal").map((f) => f.r).sort((x, y) => x[0] - y[0])) {
+      const last = merged[merged.length - 1];
+      if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+      else merged.push([a, b]);
+    }
+    let out = "";
+    let cursor = 0;
+    for (const [a, b] of merged) {
+      out += s.slice(cursor, a) + mask(s.slice(a, b));
+      cursor = b;
+    }
+    return out + s.slice(cursor);
   };
 
   // ActionRanker.baseCandidates
@@ -187,23 +294,36 @@
     json: "json", code: "code", credential: "lock", verificationCode: "number", other: "text",
   };
   const MONO = new Set(["code", "command", "json", "error", "credential"]);
+  // SF Symbols（SmartAction.systemImage）の代わりの線画
+  const ACTION_ICON = {
+    copy: "copy", open: "open", markdown: "url", explain: "explain", search: "search", run: "command",
+    polish: "sparkles", shorten: "sparkles", translate: "sparkles", newMail: "email", openMaps: "address",
+    format: "json", inspect: "json",
+  };
+  const EXTERNAL_TYPES = new Set(["text", "url", "code", "command", "error", "json"]);
 
   // PrivacyGate.evaluate の要約
   const evaluate = (content) => {
+    const found = scan(content);
+    const secret = found.some((f) => f.kind === "secret");
+    const suspicious = found.some((f) => f.kind !== "personal");
     let type = classify(content);
-    const secret = SECRETS.some((re) => re.test(content));
-    const personal = PERSONAL.some((re) => re.test(content));
-    if (secret && type !== "url" && type !== "verificationCode") type = "credential";
-    const temporary = secret || type === "verificationCode";
-    const external = !secret && !personal && type !== "verificationCode" && ["text", "url", "code", "command", "error", "json"].includes(type);
-    const actions = CANDIDATES[type].filter((a) => external || !EXTERNAL.has(a)).slice(0, 3);
+    const code = type === "verificationCode";
+    if (!code && suspicious && type !== "url" && mostlySecret(content, found)) type = "credential";
+    const temporary = code || secret;
+    const external = !found.length && EXTERNAL_TYPES.has(type) && [...content].length <= 20000;
+    // ActionRanker.rank
+    const actions = CANDIDATES[type].filter((a) => external || !EXTERNAL.has(a));
     if (!actions.includes("copy")) actions.push("copy");
+    // Presentation.makePreview
+    const collapsed = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 3).join(" ⏎ ");
+    const masked = !code && (secret || (suspicious && type === "credential"));
     return {
       type,
       temporary,
       actions: actions.slice(0, 3),
-      preview: secret ? mask(content.replace(/\s*\n\s*/g, " ")) : content.replace(/\s*\n\s*/g, " ⏎ "),
-      icon: secret ? "lock" : ROW_ICON[type],
+      preview: masked ? mask(collapsed) : suspicious && !code ? redact(collapsed) : collapsed,
+      icon: masked ? "lock" : ROW_ICON[type],
     };
   };
 
@@ -226,12 +346,19 @@
 
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-  const menuHTML = (item, active) => {
-    const smart = item.actions.map((a, i) => ({ icon: a in ICONS ? a : a === "markdown" ? "url" : a === "run" ? "command" : a === "newMail" ? "email" : a === "openMaps" ? "address" : a === "format" || a === "inspect" ? "json" : a === "shorten" || a === "polish" || a === "translate" ? "sparkles" : "copy", title: T.actions[a], key: `⌘${i + 1}`, ai: AI_ACTIONS.has(a) }));
+  // PopupViewModel.menuEntries。Copy は「貼り付け」と重なるので出さない。
+  // 見本では先頭の提案を選んだ状態にする（提案がなければ貼り付け）
+  const menuHTML = (item) => {
+    const smart = item.actions
+      .filter((a) => a !== "copy")
+      .map((a, i) => ({ icon: ACTION_ICON[a], title: T.actions[a], key: `⌘${i + 1}`, ai: AI_ACTIONS.has(a) }));
+    const active = smart.length ? 1 : 0;
     const row = (e, i) => `<button class="pop-item" type="button" data-entry="${i}" ${i === active ? 'aria-current="true"' : ""}>${ICONS[e.icon]}<span class="pop-text">${esc(e.title)}</span>${e.ai ? ICONS.sparkles : ""}<span class="pop-meta">${e.key}</span></button>`;
     const parts = [row({ icon: "paste", title: T.paste, key: "↩" }, 0), '<div class="pop-rule"></div>'];
-    smart.forEach((e, i) => parts.push(row(e, i + 1)));
-    parts.push('<div class="pop-rule"></div>');
+    if (smart.length) {
+      smart.forEach((e, i) => parts.push(row(e, i + 1)));
+      parts.push('<div class="pop-rule"></div>');
+    }
     let n = smart.length + 1;
     // PopupViewModel.menuEntries と同じく、ディスクに書かない一時 Item には保存とピン留めを出さない
     if (!item.temporary) parts.push(row({ icon: "save", title: T.save, key: "⌘S" }, n++));
@@ -252,14 +379,18 @@
   const stage = document.getElementById("stage");
   const lines = [...document.querySelectorAll(".say")];
   const heroItems = SAMPLES.map((s) => ({ ...evaluate(s), content: s }));
+  // site.css で .pop-row-wrap を縦に積む幅
+  const stacked = matchMedia("(max-width: 680px)");
+  // メニューの先頭を選択中の行に揃える（PopupView.menuOffset）。縦に積む幅では揃えない
+  const menuOffset = (index) => (stacked.matches ? "" : `${46 + index * 28}px`);
+  let heroIndex = 0;
 
   const showHero = (index) => {
+    heroIndex = index;
     stage.querySelector(".pop.list").innerHTML = listHTML(heroItems, index, false);
     const menu = stage.querySelector(".pop.menu");
-    menu.innerHTML = menuHTML(heroItems[index], 1);
-    // メニューの先頭を選択中の行に揃える（PopupView.menuOffset）。縦に積む幅では揃えない
-    const stacked = getComputedStyle(stage.querySelector(".pop-row-wrap")).flexDirection === "column";
-    menu.style.marginTop = stacked ? "" : `${46 + index * 28}px`;
+    menu.innerHTML = menuHTML(heroItems[index]);
+    menu.style.marginTop = menuOffset(index);
     lines.forEach((b, i) => b.setAttribute("aria-pressed", String(i === index)));
   };
 
@@ -275,7 +406,10 @@
   });
 
   showHero(0);
-  addEventListener("resize", () => showHero(lines.findIndex((b) => b.getAttribute("aria-pressed") === "true")));
+  stacked.addEventListener("change", () => {
+    stage.querySelector(".pop.menu").style.marginTop = menuOffset(heroIndex);
+    if (!floating.hidden) renderFloating();
+  });
 
   // 3 行を一度だけ順に見せて、API キーの行で止まる
   if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -288,6 +422,11 @@
   }
 
   // ── ページのどこでも: ⌘C のあとに ⌘⇧V ──
+
+  // ⌘ のキーがない環境では、試し方の案内を出さない（site.css は .try.mac をポインターのある端末に出す）
+  if (!/mac/i.test(navigator.userAgentData?.platform || navigator.platform || "")) {
+    document.querySelectorAll(".try.mac").forEach((el) => el.classList.remove("mac"));
+  }
 
   const copied = [];
   const floating = document.createElement("div");
@@ -331,8 +470,8 @@
     floating.querySelector(".list").innerHTML = listHTML(list, state.selection, state.notice);
     const menu = floating.querySelector(".menu");
     menu.hidden = !state.open;
-    menu.innerHTML = state.open ? menuHTML(list[state.selection], 1) : "";
-    menu.style.marginTop = state.open ? `${46 + state.selection * 28}px` : "";
+    menu.innerHTML = state.open ? menuHTML(list[state.selection]) : "";
+    menu.style.marginTop = state.open ? menuOffset(state.selection) : "";
     place();
   };
 
@@ -361,7 +500,7 @@
     else if (e.key === "ArrowUp") state.selection = Math.max(0, state.selection - 1);
     else if (e.key === "ArrowRight") state.open = true;
     else if (e.key === "ArrowLeft") state.open = false;
-    else if (e.key === "Enter") state.notice = true;
+    else if (e.key === "Enter" || (/^[1-9]$/.test(e.key) && !e.metaKey && Number(e.key) <= count)) state.notice = true;
     else return;
     e.preventDefault();
     if (!floating.hidden) renderFloating();
