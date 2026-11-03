@@ -13,7 +13,7 @@ swift build                              # debug ビルド
 ./scripts/bundle.sh                      # build/ClingCling.app を作って署名 (release)
 ./scripts/bundle.sh debug                # 同じものを debug で
 scripts/create-signing-cert.sh           # 自己署名の証明書を作る（Developer ID がない環境向け）
-NOTARIZE=0 scripts/package.sh            # ローカルで試す zip を作る
+NOTARIZE=0 scripts/package.sh            # ローカルで試す dmg を作る
 scripts/release.sh prepare <version>     # リリースの準備。その後 publish で下書きを作る
 swift scripts/check-localization.swift . # 英訳の抜けと、使われていない英訳を検出
 open build/ClingCling.app                # 起動
@@ -28,7 +28,7 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 - **`@State` を使わない。** Command Line Tools の既定の SDK では `@State` がマクロになっていて、そのプラグインが含まれないためビルドできない（`self is immutable`）。ローカルの状態は `ObservableObject` + `@StateObject` で持つ（`SettingsFormState`、`HoverState`）。
 - **テストの不安定な失敗。** テストファイルを変更した後の最初のコンパイルが "plugin for module 'TestingMacros' not found" で失敗することがある。`swift test` の末尾には `error: fatalError` とだけ出る。ビルドし直せば通るので、`scripts/test.sh` が再試行する。
 - **署名。** `bundle.sh` は `CODESIGN_IDENTITY`、Developer ID（Hardened Runtime 付き）、`ClingCling Self-Signed`、ad-hoc の順に使う。ad-hoc 署名だとビルドのたびにアクセシビリティ権限が外れる。バンドル ID は `io.github.mori-ri.clingcling`。バージョンと `Info.plist` は `Resources/Info.plist`。
-- **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて zip を作る。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
+- **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて dmg を作る（アプリと dmg をそれぞれ公証する）。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
 - **リソースは SwiftPM のリソースではない。** `bundle.sh` が `Contents/Resources` にコピーし、コードは `NSImage(named:)` で読む。`swift run` では無いので、コードは SF Symbols にフォールバックする。
 
 ## 画面の確認

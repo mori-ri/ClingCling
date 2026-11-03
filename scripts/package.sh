@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# release の ClingCling.app を作って zip にする: build/ClingCling-<version>-<arch>.zip
+# release の ClingCling.app を作って dmg にする: build/ClingCling-<version>-<arch>.dmg
 #
-# 署名と拡張属性が残るように ditto で zip にする。
+# dmg には ClingCling.app と /Applications へのリンクを入れ、開いたらドラッグでインストールできるようにする。
 #
-# 配布する zip は Developer ID で署名し、公証して staple したものだけにする。受け取った人に Gatekeeper の
+# 配布する dmg は Developer ID で署名し、公証して staple したものだけにする。受け取った人に Gatekeeper の
 # 警告が出ないようにするため。コミット済みのソースから作り、条件を満たさなければエラーで止まる。
+# 公証は 2 回行う。先にアプリを公証して staple し（/Applications にコピーした後もオフラインで検証できるように）、
+# それを入れた dmg を署名して公証する。
 # 公証には notarytool のキーチェーンプロファイルが要る。最初に一度だけ作る:
 #   xcrun notarytool store-credentials clingcling-notary --apple-id <Apple ID> --team-id <team ID>
 # 別のプロファイルは CLINGCLING_NOTARY_PROFILE で指定する。
 #
-# NOTARIZE=0 はローカルで試す用。どの署名でも、未コミットの変更があっても作れる。リリースと取り違えないよう
-# ClingCling-<version>-<arch>-local.zip という名前になる。
+# NOTARIZE=0 はローカルで試す用。どの署名でも、未コミットの変更があっても作れる。dmg は署名しない。
+# リリースと取り違えないよう ClingCling-<version>-<arch>-local.dmg という名前になる。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -26,16 +28,38 @@ fi
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
 ARCH="$(uname -m)"
-ZIP="build/ClingCling-$VERSION-$ARCH.zip"
-[[ "$NOTARIZE" != 0 ]] || ZIP="build/ClingCling-$VERSION-$ARCH-local.zip"
+DMG="build/ClingCling-$VERSION-$ARCH.dmg"
+[[ "$NOTARIZE" != 0 ]] || DMG="build/ClingCling-$VERSION-$ARCH-local.dmg"
 
-make_zip() {
+make_dmg() {
+  local staging
+  staging="$(mktemp -d)"
+  ditto build/ClingCling.app "$staging/ClingCling.app"
+  ln -s /Applications "$staging/Applications"
   rm -f "$1"
-  ditto -c -k --keepParent build/ClingCling.app "$1"
+  hdiutil create -quiet -volname ClingCling -srcfolder "$staging" -format UDZO "$1"
+  rm -rf "$staging"
+}
+
+# 公証に送り、通らなければログを出して止まる
+notarize() {
+  echo "Apple の公証サービスへ $(basename "$1") を送信しています…"
+  # 結果の status で判断する。Invalid になった送信は、コマンド自体の失敗ではない。
+  local result status
+  result="$(xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait --output-format json)" || {
+    echo "error: 公証の送信に失敗しました。プロファイル $PROFILE は package.sh の先頭の手順で作成できます。" >&2
+    exit 1
+  }
+  status="$(plutil -extract status raw -o - - <<<"$result")"
+  if [[ "$status" != Accepted ]]; then
+    echo "error: 公証が通りませんでした (status: $status)。" >&2
+    xcrun notarytool log "$(plutil -extract id raw -o - - <<<"$result")" --keychain-profile "$PROFILE" >&2 || true
+    exit 1
+  fi
 }
 
 # 失敗したときにリリースの名前のファイルが残らないよう、先に消す
-rm -f "$ZIP"
+rm -f "$DMG"
 
 codesign --verify --strict build/ClingCling.app
 # 先に変数に取る。pipefail の下の `codesign | grep -q` は SIGPIPE で失敗し、署名がないように見える。
@@ -47,29 +71,34 @@ if [[ "$NOTARIZE" != 0 ]] && ! grep -q '^Authority=Developer ID Application: ' <
 fi
 
 if [[ "$NOTARIZE" == 0 ]]; then
-  make_zip "$ZIP"
-  echo "NOTARIZE=0: 公証を省略しました。この zip はローカルで試す専用です。"
+  make_dmg "$DMG"
+  echo "NOTARIZE=0: 署名と公証を省略しました。この dmg はローカルで試す専用です。"
 else
+  # アプリの公証は zip で送る（notarytool はバンドルをそのまま受け取らない）。署名と拡張属性が残るよう ditto を使う。
   SUBMISSION="build/ClingCling-$VERSION-$ARCH-unnotarized.zip"
-  make_zip "$SUBMISSION"
-  echo "Apple の公証サービスへ送信しています…"
-  # 結果の status で判断する。Invalid になった送信は、コマンド自体の失敗ではない。
-  RESULT="$(xcrun notarytool submit "$SUBMISSION" --keychain-profile "$PROFILE" --wait --output-format json)" || {
-    echo "error: 公証の送信に失敗しました。プロファイル $PROFILE は package.sh の先頭の手順で作成できます。" >&2
-    exit 1
-  }
-  STATUS="$(plutil -extract status raw -o - - <<<"$RESULT")"
-  if [[ "$STATUS" != Accepted ]]; then
-    echo "error: 公証が通りませんでした (status: $STATUS)。" >&2
-    xcrun notarytool log "$(plutil -extract id raw -o - - <<<"$RESULT")" --keychain-profile "$PROFILE" >&2 || true
-    exit 1
-  fi
+  rm -f "$SUBMISSION"
+  ditto -c -k --keepParent build/ClingCling.app "$SUBMISSION"
+  notarize "$SUBMISSION"
+  rm -f "$SUBMISSION"
   xcrun stapler staple build/ClingCling.app
   spctl --assess --type execute --verbose build/ClingCling.app
-  # チケットはバンドルの中に入るので、zip を作り直す
-  make_zip "$ZIP"
-  rm -f "$SUBMISSION"
+
+  # dmg はアプリと同じ証明書で署名する。名前だと期限切れと更新後の証明書が同名のときに曖昧になるので、
+  # アプリの署名から証明書を取り出し、そのハッシュで指定する。
+  CERTS="$(mktemp -d)"
+  codesign -d --extract-certificates="$CERTS/cert" build/ClingCling.app 2>/dev/null
+  IDENTITY="$(shasum -a 1 "$CERTS/cert0" | awk '{ print toupper($1) }')"
+  rm -rf "$CERTS"
+
+  # 失敗しても、署名や公証を終えていない dmg がリリースの名前で残らないよう、別名で作ってから移す
+  UNSIGNED="build/ClingCling-$VERSION-$ARCH-unnotarized.dmg"
+  make_dmg "$UNSIGNED"
+  codesign --sign "$IDENTITY" --timestamp "$UNSIGNED"
+  notarize "$UNSIGNED"
+  xcrun stapler staple "$UNSIGNED"
+  spctl --assess --type open --context context:primary-signature --verbose "$UNSIGNED"
+  mv "$UNSIGNED" "$DMG"
 fi
 
-echo "Packaged $ZIP"
+echo "Packaged $DMG"
 grep -E "^(Authority|Signature)=" <<<"$SIGNATURE" || true
