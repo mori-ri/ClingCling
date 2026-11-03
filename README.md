@@ -78,7 +78,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 入力 | 扱い |
 |---|---|
 | Concealed / Transient marker、Password Manager、Never Capture アプリ | キャプチャしない |
-| 既知 Secret（API キー、JWT、秘密鍵、接続文字列、カード番号…）、認証コード | **ディスクに書かず**メモリで 5 分保持、一覧とカードではマスク、外部送信不可 |
+| 既知 Secret（API キー、JWT、秘密鍵、接続文字列、カード番号…）、認証コード | **ディスクに書かず**メモリで 5 分保持、一覧とカードではマスク（認証コードは読めるようそのまま表示）、外部送信不可 |
 | 高エントロピー文字列（未知 Token・長い Hex） | 保存するが Local only。一覧とカードでは該当部分だけをマスク（URL のパスやファイルパス、CamelCase の語は Token とみなさない） |
 | 個人情報（メール・電話番号）、住所、Local Only アプリ、分類不能 | 保存するが Local only |
 | 画像 | 中身を検査できないので保存はするが常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |

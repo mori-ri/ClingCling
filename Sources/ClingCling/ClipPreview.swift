@@ -35,13 +35,22 @@ final class ClipPreviewPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    /// 今カードに出している Item
+    private var shownItem: ClipItem?
+
+    // 閉じた後に届いた「入った」は捨てる。対になる「出た」が届かず、ほかの行のプレビューが出なくなる。
+    override func mouseEntered(with event: NSEvent) { if isVisible { onHover(true) } }
     override func mouseExited(with event: NSEvent) { onHover(false) }
 
     /// `rowFrame`（"popup" 座標系）の行の横に出す。右に入らなければ左に出す。
-    func show(_ view: ClipPreviewView, rowFrame: CGRect, beside parent: NSWindow) {
-        hosting.rootView = view
-        let size = hosting.fittingSize
+    /// 同じ Item で行が動いただけなら、本文を作り直さずに位置だけ変える（全文の Secret 検出と組版が重い）。
+    func show(_ item: ClipItem, image: @autoclosure () -> NSImage?, rowFrame: CGRect, beside parent: NSWindow) {
+        var size = frame.size
+        if item != shownItem || !isVisible {
+            shownItem = item
+            hosting.rootView = ClipPreviewView(image: image(), item: item)
+            size = hosting.fittingSize
+        }
         let host = parent.frame
         let visible = (parent.screen ?? NSScreen.main)?.visibleFrame ?? host
 
@@ -63,14 +72,16 @@ final class ClipPreviewPanel: NSPanel {
             parent.addChildWindow(self, ordered: .above)
         }
         orderFront(nil)
-        // 影は描かれた形から作られるので、大きさが変わるたびに作り直す
-        invalidateShadow()
+        // 影は描かれた形から作られるので、大きさが変わるたびに作り直す。
+        // SwiftUI が新しい内容を描き終えてからにしないと、前のカードの形の影が残る。
+        DispatchQueue.main.async { [weak self] in self?.invalidateShadow() }
     }
 
     func hide() {
         parent?.removeChildWindow(self)
         orderOut(nil)
         // 一時 Item（OTP など）の本文を、閉じた後のビューに残さない
+        shownItem = nil
         hosting.rootView = .empty
     }
 }
@@ -103,7 +114,7 @@ struct ClipPreviewView: View {
     init(image: NSImage?, item: ClipItem) {
         var parts = [Presentation.meta(item)]
         if image != nil { parts.insert(item.content, at: 0) }
-        if !item.isFullyMasked, item.content.count > Presentation.fullTextLimit {
+        if item.isFullTextCut(limit: Presentation.fullTextLimit) {
             parts.append(String(localized: "先頭 \(Presentation.fullTextLimit) 文字を表示"))
         }
         self.init(image: image, id: item.id, text: Presentation.fullText(item),
@@ -138,6 +149,8 @@ struct ClipPreviewView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                // 英語などで長くなっても、本文の幅を超えてカードを広げない
+                .frame(maxWidth: Self.textWidth - 16, alignment: .leading)
         }
         .padding(8)
         .popupFill(cornerRadius: 10)

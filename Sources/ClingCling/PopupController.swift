@@ -91,7 +91,7 @@ final class PopupController: NSObject, NSWindowDelegate {
             return
         }
         let item = preview.item
-        previewPanel.show(ClipPreviewView(image: vm.model.thumbnail(for: item, maxPixelSize: 720), item: item),
+        previewPanel.show(item, image: vm.model.thumbnail(for: item, maxPixelSize: 720),
                           rowFrame: preview.rowFrame, beside: panel)
     }
 

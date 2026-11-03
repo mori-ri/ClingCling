@@ -41,9 +41,19 @@ extension ClipItem {
         return detector.redact(Self.cut(content, at: limit))
     }
 
+    /// `fullText(limit:)` が本文を途中で切るか。全体を伏せる Item は切らずに伏せるので false。
+    public func isFullTextCut(limit: Int) -> Bool {
+        !isFullyMasked && Self.isLonger(content, than: limit)
+    }
+
+    /// `count` は全体を数えるので、長い本文でも先頭だけを見る
+    private static func isLonger(_ text: String, than limit: Int) -> Bool {
+        !text.dropFirst(limit).isEmpty
+    }
+
     /// 切った位置で Token が途中までしか残らないと検出から漏れるので、末尾の書きかけの Token ごと落とす
     private static func cut(_ text: String, at limit: Int) -> String {
-        guard !text.dropFirst(limit).isEmpty else { return text }
+        guard isLonger(text, than: limit) else { return text }
         var cut = String(text.prefix(limit))
         while let last = cut.last, last.isLetter || last.isNumber || "+/=_-.~".contains(last) {
             cut.removeLast()

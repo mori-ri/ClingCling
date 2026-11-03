@@ -79,7 +79,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | Input | Handling |
 |---|---|
 | Concealed / transient markers, password managers, Never Capture apps | Not captured |
-| Known secrets (API keys, JWTs, private keys, connection strings, card numbers…), verification codes | **Never written to disk**; kept in memory for 5 minutes, masked in the list and the card, cannot be sent out |
+| Known secrets (API keys, JWTs, private keys, connection strings, card numbers…), verification codes | **Never written to disk**; kept in memory for 5 minutes, masked in the list and the card (verification codes stay readable), cannot be sent out |
 | High-entropy strings (unknown tokens, long hex) | Saved but local only. Only the matching part is masked in the list and the card (URL paths, file paths and CamelCase words don't count as tokens) |
 | Personal information (email addresses, phone numbers), addresses, Local Only apps, unclassifiable content | Saved but local only |
 | Images | Their content can't be inspected, so they are saved but always local only (markers, password managers and per-app policies apply as for text) |

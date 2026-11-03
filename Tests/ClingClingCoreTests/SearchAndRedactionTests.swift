@@ -154,6 +154,13 @@ struct ClipDisplayTests {
         #expect(text == "\(String(repeating: "あ", count: 10)) ")
     }
 
+    @Test func fullTextCutOnlyWhenLongerThanLimit() {
+        #expect(make("12345").isFullTextCut(limit: 5) == false)
+        #expect(make("123456").isFullTextCut(limit: 5))
+        // 全体を伏せる Item は切らずに伏せる
+        #expect(make(String(repeating: "x", count: 10), sensitivity: .secret).isFullTextCut(limit: 5) == false)
+    }
+
     @Test func fullTextShowsVerificationCode() {
         let item = make("認証コード 123456", type: .verificationCode, sensitivity: .secret)
         #expect(item.fullText(limit: 1_000, detector: detector) == "認証コード 123456")
