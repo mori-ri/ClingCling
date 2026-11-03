@@ -22,7 +22,7 @@ struct NewsPage: View {
                         Button("ダウンロード") { ProjectLinks.open(ProjectLinks.latestRelease) }
                             .buttonStyle(.borderedProminent)
                     }
-                    NoteRow("リリースのページから dmg をダウンロードして開き、ClingCling を終了してから、ClingCling.app を「アプリケーション」フォルダにドラッグして置き換えます。設定と履歴は引き継がれます。")
+                    NoteRow("リリースのページから dmg をダウンロードして開き、ClingCling を終了してから、ClingCling.app を「アプリケーション」フォルダにドラッグして置き換え、もう一度開きます。設定と履歴は引き継がれます。")
                 }
             }
             if updates.notes.isEmpty {
