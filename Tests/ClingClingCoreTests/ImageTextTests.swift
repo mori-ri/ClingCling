@@ -184,13 +184,13 @@ struct ImageTextActionTests {
                  image: ClipImage(fileName: "h.png", width: 2, height: 2, text: text))
     }
 
-    @Test func copyTextIsOfferedOnlyWhenTextWasRecognized() {
-        #expect(ranker.rank(image(text: "Hello"), stats: nil) == [.copy, .copyText, .saveImage])
+    @Test func pasteTextIsOfferedOnlyWhenTextWasRecognized() {
+        #expect(ranker.rank(image(text: "Hello"), stats: nil) == [.copy, .pasteText, .saveImage])
         #expect(ranker.rank(image(text: ""), stats: nil) == [.copy, .saveImage])
     }
 
-    @Test func copyTextStaysOnTheMac() {
-        #expect(!SmartAction.copyText.sendsContentExternally)
-        #expect(!SmartAction.copyText.needsConfirmation(for: "rm -rf /"))
+    @Test func pasteTextStaysOnTheMac() {
+        #expect(!SmartAction.pasteText.sendsContentExternally)
+        #expect(!SmartAction.pasteText.needsConfirmation(for: "rm -rf /"))
     }
 }

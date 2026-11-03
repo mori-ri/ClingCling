@@ -135,7 +135,7 @@
 "JSON を整形" = "Format JSON";
 "JSON の構造を見る" = "Inspect JSON";
 "ダウンロードに保存" = "Save to Downloads";
-"テキストをコピー" = "Copy Text";
+"テキストで貼り付け" = "Paste as Text";
 "URL を開けませんでした。" = "Couldn't open the URL.";
 "URL を解析できませんでした。" = "Couldn't parse the URL.";
 "メールを作成できませんでした。" = "Couldn't create the email.";

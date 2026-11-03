@@ -111,7 +111,7 @@ enum Presentation {
         case .format: String(localized: "JSON を整形")
         case .inspect: String(localized: "JSON の構造を見る")
         case .saveImage: String(localized: "ダウンロードに保存")
-        case .copyText: String(localized: "テキストをコピー")
+        case .pasteText: String(localized: "テキストで貼り付け")
         }
     }
 }
