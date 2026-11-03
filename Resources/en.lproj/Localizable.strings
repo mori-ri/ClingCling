@@ -148,6 +148,29 @@
 "Sensitive な一時 Item はファイルに保存できません。" = "Sensitive temporary items can't be saved to a file.";
 "Terminal で実行できませんでした: %@" = "Couldn't run in Terminal: %@";
 
+/* Smart Actions: files */
+"Finder で表示" = "Show in Finder";
+"パスをコピー" = "Copy Path";
+"Terminal で開く" = "Open in Terminal";
+"中身をテキストでコピー" = "Copy Contents as Text";
+"まとめて開く" = "Open All";
+"Finder で開く" = "Open in Finder";
+"起動する" = "Launch";
+"展開する" = "Extract";
+"マウントする" = "Mount";
+"インストーラを開く" = "Open Installer";
+"%@ で開く" = "Open with %@";
+"アプリの起動やインストール、スクリプトの実行につながるファイルです。心当たりがあるファイルか確認してください。" = "Opening this may launch an app, install software or run a script, so make sure you recognize the file.";
+"%lld 個のファイルをまとめて開きます。" = "Opens %lld files at once.";
+"%@ ほか %lld 件" = "%@ and %lld more";
+"ファイルが見つかりませんでした。移動したか、削除された可能性があります。" = "The file wasn't found. It may have been moved or deleted.";
+"この Item では使えない操作です。" = "This action isn't available for this item.";
+"Terminal が見つかりませんでした。" = "Terminal wasn't found.";
+"Terminal で開けませんでした" = "Couldn't Open in Terminal";
+"ファイルが大きすぎるため、中身をコピーできません（1 MB まで）。" = "The file is too large to copy its contents (up to 1 MB).";
+"テキストとして読めないファイルです。" = "This file can't be read as text.";
+"ファイルの Item は保存の対象外です。「Finder で表示」から扱えます。" = "File items can't be saved. Use Show in Finder instead.";
+
 /* Popup */
 "入力して絞り込み" = "Type to filter";
 "ピン留め" = "Pinned";

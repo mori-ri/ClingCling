@@ -22,8 +22,9 @@ extension ClipItem {
         sensitivity >= .suspicious && contentType != .verificationCode
     }
 
-    /// 一覧の行に出す本文
+    /// 一覧の行に出す本文。ファイルは名前（複数なら「a.pdf ほか 2 件」）。
     public func rowText(detector: SecretDetector) -> String {
+        if isFile { return fileSummary }
         let collapsed = displayContent
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -42,6 +43,14 @@ extension ClipItem {
         let text = displayContent
         guard needsRedaction else { return String(text.prefix(limit)) }
         return detector.redact(Self.cut(text, at: limit))
+    }
+
+    /// ファイル Item の名前。複数なら先頭の名前と残りの件数。
+    public var fileSummary: String {
+        let paths = filePaths
+        guard let first = paths.first else { return content }
+        let name = CopiedFiles.displayName(of: first)
+        return paths.count == 1 ? name : String(localized: "\(name) ほか \(paths.count - 1) 件")
     }
 
     /// `fullText(limit:)` が本文を途中で切るか。全体を伏せる Item は切らずに伏せるので false。

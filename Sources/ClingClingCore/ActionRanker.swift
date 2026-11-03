@@ -12,8 +12,8 @@ public struct ActionRanker {
 
     public init() {}
 
-    /// 分類・コピー元アプリから見た「既定の推奨順」
-    public static func baseCandidates(for type: ContentType, source: SourceApp) -> [SmartAction] {
+    /// 分類・コピー元アプリから見た「既定の推奨順」。ファイルは `filePaths` から種類を見る。
+    public static func baseCandidates(for type: ContentType, source: SourceApp, filePaths: [String] = []) -> [SmartAction] {
         switch type {
         case .url: return [.open, .markdown, .copy]
         case .error: return [.explain, .search, .copy]
@@ -25,13 +25,33 @@ public struct ActionRanker {
         case .json: return [.copy, .format, .inspect]
         case .code: return [.copy, .explain]
         case .image: return [.copy, .pasteText, .saveImage]
+        case .file: return fileCandidates(for: filePaths)
         case .credential, .verificationCode, .other: return [.copy]
         }
     }
 
+    /// ファイルの種類ごとの推奨順。貼り付け（Copy）はアクションメニューの先頭に常にあるので、ここには入れない。
+    /// 4 つ目以降も、よく選ばれれば利用履歴で上がってくる。
+    public static func fileCandidates(for paths: [String]) -> [SmartAction] {
+        let kind = FileKind.of(paths: paths)
+        // パッケージ（`.workflow` など）はフォルダなので中身を読めない
+        let singleFile = paths.count == 1 && !paths[0].hasSuffix("/")
+        if kind == .folder && paths.count == 1 {
+            return [.openFile, .openInTerminal, .copyPath, .revealInFinder]
+        }
+        if kind == .script {
+            // 開くと実行されることがあるので、中身を見る操作を先にする
+            return singleFile ? [.copyContents, .revealInFinder, .copyPath, .openFile] : [.revealInFinder, .copyPath, .openFile]
+        }
+        if kind.isTextual && singleFile {
+            return [.copyContents, .openFile, .revealInFinder, .copyPath]
+        }
+        return [.openFile, .revealInFinder, .copyPath]
+    }
+
     /// 表示する Action（最大 3 つ、左端が最も推奨）
     public func rank(_ item: ClipItem, stats: ActionStatsProvider?) -> [SmartAction] {
-        var candidates = Self.baseCandidates(for: item.contentType, source: item.source)
+        var candidates = Self.baseCandidates(for: item.contentType, source: item.source, filePaths: item.filePaths)
         // 文字が写っていない画像には、テキストで貼り付ける操作を出さない
         if item.recognizedText == nil {
             candidates.removeAll { $0 == .pasteText }
@@ -39,7 +59,8 @@ public struct ActionRanker {
         if !item.externalAllowed {
             candidates.removeAll(where: \.sendsContentExternally)
         }
-        if !candidates.contains(.copy) { candidates.append(.copy) }
+        // ファイルの貼り付けはアクションメニューの先頭に常にあるので、Smart Action の枠を使わせない
+        if !candidates.contains(.copy) && item.contentType != .file { candidates.append(.copy) }
 
         guard let stats else { return Array(candidates.prefix(Self.maxVisible)) }
 

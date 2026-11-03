@@ -7,8 +7,8 @@ import ClingClingCore
 final class ClipboardMonitor {
     /// 1 MB を超えるテキストはキャプチャしない
     private static let maxLength = 1_000_000
-    /// 30 MB を超える画像データはキャプチャしない
-    private static let maxImageBytes = 30_000_000
+    /// 30 MB を超える画像データはキャプチャしない（画像のファイルのサムネイルもこの大きさまで）
+    static let maxImageBytes = 30_000_000
 
     private let pasteboard = NSPasteboard.general
     private var lastChangeCount: Int
@@ -43,14 +43,26 @@ final class ClipboardMonitor {
         let app = NSWorkspace.shared.frontmostApplication
         let source = SourceApp(bundleID: app?.bundleIdentifier, name: app?.localizedName)
 
+        // ファイルを先に見る。Finder でのファイルコピーには、ファイル名のテキストとアイコンの画像も載るため。
+        if types.contains(NSPasteboard.PasteboardType.fileURL.rawValue) {
+            switch copiedFiles() {
+            case .files(let paths):
+                onCapture(CaptureInput(filePaths: paths, pasteboardTypes: types, source: source))
+                return
+            case .skip:
+                return
+            case .noFiles:
+                // 受け渡し用の一時ファイルなど。一緒に載っている本文か画像を残す
+                break
+            }
+        }
+
         // テキストがあればテキストを優先する（表計算のセルなどは画像も一緒に載るため）
         if let text = pasteboard.string(forType: .string) {
             guard text.count <= Self.maxLength else { return }
             onCapture(CaptureInput(text: text, pasteboardTypes: types, source: source))
             return
         }
-        // Finder でのファイルコピーはアイコン画像が載るだけなので対象外（ファイルは未対応）
-        guard !types.contains(NSPasteboard.PasteboardType.fileURL.rawValue) else { return }
         let png = pasteboard.data(forType: .png)
         guard let data = png ?? pasteboard.data(forType: .tiff), data.count <= Self.maxImageBytes else { return }
 
@@ -65,6 +77,35 @@ final class ClipboardMonitor {
                 onCapture(CaptureInput(image: image, pasteboardTypes: types, source: source, date: date))
             }
         }
+    }
+
+    private enum CopiedFilesResult {
+        case files([String])
+        /// 残すファイルがない（アプリが一時ディレクトリに書き出したファイルだけ、など）
+        case noFiles
+        /// 読めない・多すぎる。キャプチャしない
+        case skip
+    }
+
+    /// コピーされたファイルのパス。フォルダ（`.app` などのパッケージを含む）は末尾に `/` を付ける。
+    private func copiedFiles() -> CopiedFilesResult {
+        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self],
+                                                options: [.urlReadingFileURLsOnly: true]) as? [URL],
+              !urls.isEmpty
+        else { return .noFiles }
+        guard urls.count <= CopiedFiles.maxCount else { return .skip }
+        var paths: [String] = []
+        for url in urls {
+            // Finder はファイル参照 URL（file:///.file/id=…）を載せることがあるので、パスの URL に直す
+            let fileURL = (url as NSURL).filePathURL ?? url
+            let path = fileURL.path
+            guard !path.isEmpty, !path.contains(where: \.isNewline) else { return .skip }
+            let isDirectory = (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory
+                ?? fileURL.hasDirectoryPath
+            paths.append(isDirectory && path != "/" ? path + "/" : path)
+        }
+        if paths.allSatisfy(CopiedFiles.isTemporaryLocation) { return .noFiles }
+        return .files(paths)
     }
 
     /// 保存用の PNG とピクセルサイズ、写っている文字（OCR）

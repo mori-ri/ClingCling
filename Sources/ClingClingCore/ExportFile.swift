@@ -4,8 +4,9 @@ import Foundation
 public enum ExportFile {
     /// ファイルに保存できる Item か。
     /// ディスクに書かないと判断した一時 Item（Secret・認証コード）は、ファイルにも書かない。
+    /// ファイル Item はファイルそのものがあるので書き出さない（本文はパスの一覧でしかない）。
     public static func canExport(_ item: ClipItem) -> Bool {
-        !item.isTemporary
+        !item.isTemporary && !item.isFile
     }
 
     /// 拡張子。画像は PNG、JSON は `.json`、それ以外のテキストは `.txt`

@@ -17,8 +17,11 @@ enum ActionExecutor {
         let text = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
         switch action {
         case .copy:
-            model.writeItemToPasteboard(item)
+            guard model.writeItemToPasteboard(item) else { return .failure(notFoundMessage(for: item)) }
             return .close(paste: model.settings.pasteAfterCopy)
+
+        case .openFile, .revealInFinder, .copyPath, .openInTerminal, .copyContents:
+            return performFileAction(action, on: item, model: model)
 
         case .saveImage:
             return saveImage(item, model: model)
@@ -171,6 +174,78 @@ enum ActionExecutor {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Files
+
+    static func notFoundMessage(for item: ClipItem) -> String {
+        item.isFile
+            ? String(localized: "ファイルが見つかりませんでした。移動したか、削除された可能性があります。")
+            : String(localized: "画像が見つかりませんでした。")
+    }
+
+    /// ファイル Item の Action。履歴にはパスしかないので、移動・削除されたファイルは扱えない。
+    private static func performFileAction(_ action: SmartAction, on item: ClipItem, model: AppModel) -> Outcome {
+        // パスのコピーは、ファイルがもう無くても使える
+        if action == .copyPath {
+            model.writeToPasteboard(item.filePaths.map(CopiedFiles.plainPath).joined(separator: "\n"), reusing: item)
+            return .close(paste: model.settings.pasteAfterCopy)
+        }
+        let urls = model.existingFileURLs(item)
+        guard !urls.isEmpty else { return .failure(notFoundMessage(for: item)) }
+
+        switch action {
+        case .openFile:
+            for url in urls { NSWorkspace.shared.open(url) }
+            return .close(paste: false)
+
+        case .revealInFinder:
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+            return .close(paste: false)
+
+        case .openInTerminal:
+            return openInTerminal(urls[0])
+
+        case .copyContents:
+            return copyContents(of: urls[0], item: item, model: model)
+
+        default:
+            return .failure(String(localized: "この Item では使えない操作です。"))
+        }
+    }
+
+    /// フォルダを新しい Terminal のウインドウで開く（`open -a Terminal <folder>` と同じ）
+    private static func openInTerminal(_ folder: URL) -> Outcome {
+        guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            return .failure(String(localized: "Terminal が見つかりませんでした。"))
+        }
+        NSWorkspace.shared.open([folder], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            guard let message = error?.localizedDescription else { return }
+            // ポップアップは閉じているので、アラートで知らせる
+            Task { @MainActor in
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Terminal で開けませんでした")
+                alert.informativeText = message
+                NSApp.activate()
+                alert.runModal()
+            }
+        }
+        return .close(paste: false)
+    }
+
+    /// テキストのファイルの中身をクリップボードに載せる。
+    /// 中身は Privacy Gate を通っていないので、Secret が見つかれば他の Clipboard Manager に残らないよう印を付ける。
+    private static func copyContents(of url: URL, item: ClipItem, model: AppModel) -> Outcome {
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
+        guard size <= CopiedFiles.maxTextBytes else {
+            return .failure(String(localized: "ファイルが大きすぎるため、中身をコピーできません（1 MB まで）。"))
+        }
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else {
+            return .failure(String(localized: "テキストとして読めないファイルです。"))
+        }
+        let concealed = SecretDetector().scan(text).contains { $0.kind != .personal }
+        model.writeToPasteboard(text, concealed: concealed, reusing: item)
+        return .close(paste: model.settings.pasteAfterCopy)
+    }
+
     /// 画像を「ダウンロード」に PNG で書き出して Finder で示す
     private static func saveImage(_ item: ClipItem, model: AppModel) -> Outcome {
         guard let data = model.imageData(for: item) else { return .failure(String(localized: "画像が見つかりませんでした。")) }
@@ -180,6 +255,9 @@ enum ActionExecutor {
     /// Item を「ダウンロード」にファイルで書き出して Finder で示す。
     /// テキストは UTF-8 の `.txt`（JSON は `.json`）、画像は PNG。
     static func saveFile(_ item: ClipItem, model: AppModel) -> Outcome {
+        guard !item.isFile else {
+            return .failure(String(localized: "ファイルの Item は保存の対象外です。「Finder で表示」から扱えます。"))
+        }
         // 一時 Item（Secret・認証コード）はディスクに書かない約束なので、ファイルにも書かない
         guard ExportFile.canExport(item) else {
             return .failure(String(localized: "Sensitive な一時 Item はファイルに保存できません。"))

@@ -18,6 +18,14 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
     case saveImage = "save_image"
     /// 画像から読み取った文字（OCR）を、画像の代わりにテキストで貼り付ける
     case pasteText = "paste_text"
+    /// ファイルを既定のアプリで開く（アプリなら起動、フォルダなら Finder）
+    case openFile = "open_file"
+    case revealInFinder = "reveal_in_finder"
+    case copyPath = "copy_path"
+    /// フォルダを新しい Terminal のウインドウで開く
+    case openInTerminal = "open_in_terminal"
+    /// テキストのファイルの中身をテキストとしてコピーする
+    case copyContents = "copy_contents"
 
     public var title: String {
         switch self {
@@ -36,6 +44,11 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
         case .inspect: "Inspect"
         case .saveImage: "Save Image"
         case .pasteText: "Paste as Text"
+        case .openFile: "Open File"
+        case .revealInFinder: "Reveal in Finder"
+        case .copyPath: "Copy Path"
+        case .openInTerminal: "Open in Terminal"
+        case .copyContents: "Copy Contents"
         }
     }
 
@@ -56,6 +69,11 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
         case .inspect: "list.bullet.indent"
         case .saveImage: "square.and.arrow.down"
         case .pasteText: "text.viewfinder"
+        case .openFile: "arrow.up.forward.app"
+        case .revealInFinder: "folder"
+        case .copyPath: "character.cursor.ibeam"
+        case .openInTerminal: "terminal"
+        case .copyContents: "text.alignleft"
         }
     }
 
@@ -76,10 +94,15 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
     /// 実行の前に内容を確認してもらう操作。
     /// コピーした文字列は他人が用意したものかもしれない。`file:` や `vscode:` はアプリやスクリプトを起動できるので、
     /// Web を開くだけの http(s) 以外は確認する。判定できない URL は確認する側に倒す。
+    /// ファイルは、アプリ・インストーラ・スクリプトを含むときと、まとめて開く数が多いときに確認する。
     public func needsConfirmation(for content: String) -> Bool {
         switch self {
         case .run:
             return true
+        case .openFile:
+            let paths = content.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            return paths.count > FileKind.maxOpenWithoutConfirmation
+                || paths.contains { FileKind.classify(path: $0).launchesCode }
         case .open:
             let text = content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if text.hasPrefix("www.") { return false }
