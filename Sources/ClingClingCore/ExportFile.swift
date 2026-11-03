@@ -41,9 +41,8 @@ public enum ExportFile {
         return url
     }
 
-    /// テキスト Item の中身（UTF-8）。画像 Item の本文はラベルなので nil。
-    public static func textData(for item: ClipItem) -> Data? {
-        guard !item.isImage else { return nil }
-        return Data(item.content.utf8)
+    /// テキスト Item の中身（UTF-8）。画像 Item の本文はラベルなので、画像には使わない。
+    public static func textData(for item: ClipItem) -> Data {
+        Data(item.content.utf8)
     }
 }

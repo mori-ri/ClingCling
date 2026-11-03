@@ -42,9 +42,7 @@ struct ExportFileTests {
         #expect(free.lastPathComponent == "b.json")
     }
 
-    @Test func textDataIsUTF8AndImagesHaveNone() {
+    @Test func textDataIsUTF8() {
         #expect(ExportFile.textData(for: item(.text, content: "こんにちは\n")) == Data("こんにちは\n".utf8))
-        let image = item(.image, image: ClipImage(fileName: "h.png", width: 2, height: 2))
-        #expect(ExportFile.textData(for: image) == nil)
     }
 }

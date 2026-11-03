@@ -177,8 +177,7 @@ enum ActionExecutor {
             return .failure(String(localized: "Sensitive な一時 Item はファイルに保存できません。"))
         }
         if item.isImage { return saveImage(item, model: model) }
-        guard let data = ExportFile.textData(for: item) else { return .failure(String(localized: "保存できませんでした。")) }
-        return saveToDownloads(data, item: item)
+        return saveToDownloads(ExportFile.textData(for: item), item: item)
     }
 
     private static func saveToDownloads(_ data: Data, item: ClipItem) -> Outcome {
