@@ -23,6 +23,14 @@ enum ActionExecutor {
         case .saveImage:
             return saveImage(item, model: model)
 
+        case .pasteText:
+            guard let recognized = item.recognizedText else {
+                return .failure(String(localized: "画像から文字を読み取れませんでした。"))
+            }
+            model.writeToPasteboard(recognized, concealed: item.sensitivity >= .suspicious, reusing: item)
+            // 「貼り付け」なので、Copy 後の貼り付けの設定に関係なく ↩ と同じく直前のアプリへ貼り付ける
+            return .close(paste: true)
+
         case .open:
             guard let url = normalizedURL(text) else { return .failure(String(localized: "URL を開けませんでした。")) }
             NSWorkspace.shared.open(url)

@@ -92,21 +92,26 @@ struct ClipPreviewView: View {
     private static let maxTextHeight: CGFloat = 360
     /// 画像の長辺の最大表示サイズ（pt）
     private static let maxSide: CGFloat = 320
+    /// 画像の下に出す、読み取った文字の欄の高さの上限
+    private static let maxRecognizedTextHeight: CGFloat = 160
 
     /// 画像 Item の画像。読み込めなかったときは本文（ラベル）を出す
     let image: NSImage?
     let id: UUID?
     let text: String
+    /// 本文の欄を出すか。画像は文字を読み取れたときだけ、画像の下に出す
+    let showsText: Bool
     let monospaced: Bool
     /// いつ・どのアプリでコピーしたか
     let meta: String
 
-    static let empty = ClipPreviewView(image: nil, id: nil, text: "", monospaced: false, meta: "")
+    static let empty = ClipPreviewView(image: nil, id: nil, text: "", showsText: true, monospaced: false, meta: "")
 
-    private init(image: NSImage?, id: UUID?, text: String, monospaced: Bool, meta: String) {
+    private init(image: NSImage?, id: UUID?, text: String, showsText: Bool, monospaced: Bool, meta: String) {
         self.image = image
         self.id = id
         self.text = text
+        self.showsText = showsText
         self.monospaced = monospaced
         self.meta = meta
     }
@@ -118,6 +123,7 @@ struct ClipPreviewView: View {
             parts.append(String(localized: "先頭 \(Presentation.fullTextLimit) 文字を表示"))
         }
         self.init(image: image, id: item.id, text: Presentation.fullText(item),
+                  showsText: image == nil || item.recognizedText != nil,
                   monospaced: Presentation.isMonospaced(item.contentType), meta: parts.joined(separator: " · "))
     }
 
@@ -132,7 +138,8 @@ struct ClipPreviewView: View {
                     .frame(width: size.width, height: size.height)
                     .background(Color.primary.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            } else {
+            }
+            if showsText {
                 ScrollView {
                     Text(text)
                         .font(.system(size: 12, design: monospaced ? .monospaced : .default))
@@ -142,7 +149,7 @@ struct ClipPreviewView: View {
                 // 別の Item に切り替えたらスクロール位置を先頭に戻す
                 .id(id)
                 .frame(width: Self.textWidth - 16)
-                .frame(maxHeight: Self.maxTextHeight)
+                .frame(maxHeight: image == nil ? Self.maxTextHeight : Self.maxRecognizedTextHeight)
                 .fixedSize(horizontal: false, vertical: true)
             }
             Text(meta)

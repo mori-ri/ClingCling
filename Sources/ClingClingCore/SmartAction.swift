@@ -16,6 +16,8 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
     case format
     case inspect
     case saveImage = "save_image"
+    /// 画像から読み取った文字（OCR）を、画像の代わりにテキストで貼り付ける
+    case pasteText = "paste_text"
 
     public var title: String {
         switch self {
@@ -33,6 +35,7 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
         case .format: "Format"
         case .inspect: "Inspect"
         case .saveImage: "Save Image"
+        case .pasteText: "Paste as Text"
         }
     }
 
@@ -52,6 +55,7 @@ public enum SmartAction: String, Codable, CaseIterable, Sendable {
         case .format: "curlybraces"
         case .inspect: "list.bullet.indent"
         case .saveImage: "square.and.arrow.down"
+        case .pasteText: "text.viewfinder"
         }
     }
 

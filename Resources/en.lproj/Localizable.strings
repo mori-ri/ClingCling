@@ -135,12 +135,14 @@
 "JSON を整形" = "Format JSON";
 "JSON の構造を見る" = "Inspect JSON";
 "ダウンロードに保存" = "Save to Downloads";
+"テキストで貼り付け" = "Paste as Text";
 "URL を開けませんでした。" = "Couldn't open the URL.";
 "URL を解析できませんでした。" = "Couldn't parse the URL.";
 "メールを作成できませんでした。" = "Couldn't create the email.";
 "JSON として解析できませんでした。" = "Couldn't parse this as JSON.";
 "Formatted JSON（コピー済み）" = "Formatted JSON (Copied)";
 "画像が見つかりませんでした。" = "The image wasn't found.";
+"画像から文字を読み取れませんでした。" = "No text was found in the image.";
 "保存できませんでした。" = "Couldn't save the file.";
 "保存できませんでした: %@" = "Couldn't save the file: %@";
 "Sensitive な一時 Item はファイルに保存できません。" = "Sensitive temporary items can't be saved to a file.";

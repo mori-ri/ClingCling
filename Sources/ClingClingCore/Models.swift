@@ -12,7 +12,7 @@ public enum ContentType: String, Codable, CaseIterable, Sendable {
     case json
     case credential
     case verificationCode = "verification_code"
-    /// 画像（スクリーンショットなど）。中身を検査できないので常に Local only
+    /// 画像（スクリーンショットなど）。写っている文字（OCR）しか検査できないので常に Local only
     case image
     case other
 }
@@ -76,11 +76,14 @@ public struct ClipImage: Hashable, Codable, Sendable {
     public var fileName: String
     public var width: Int
     public var height: Int
+    /// 画像から読み取った文字（OCR）。文字が写っていなければ空
+    public var text: String
 
-    public init(fileName: String, width: Int, height: Int) {
+    public init(fileName: String, width: Int, height: Int, text: String = "") {
         self.fileName = fileName
         self.width = width
         self.height = height
+        self.text = text
     }
 }
 
@@ -139,4 +142,13 @@ public struct ClipItem: Identifiable, Hashable, Sendable {
     public var isTemporary: Bool { retention == .temporary }
     public var isLocalOnly: Bool { !externalAllowed }
     public var isImage: Bool { image != nil }
+
+    /// 画像から読み取った文字（OCR）。テキスト Item と、文字が写っていない画像は nil
+    public var recognizedText: String? {
+        guard let text = image?.text, !text.isEmpty else { return nil }
+        return text
+    }
+
+    /// 一覧・プレビュー・検索で本文として扱う文字列。文字を読み取った画像はその文字、それ以外は `content`
+    public var displayContent: String { recognizedText ?? content }
 }

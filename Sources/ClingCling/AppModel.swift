@@ -125,6 +125,10 @@ final class AppModel: ObservableObject {
         if let tiff = NSBitmapImageRep(data: png)?.tiffRepresentation {
             pb.setData(tiff, forType: .tiff)
         }
+        // 写っている文字に Secret がある画像は、テキストと同じく他の Clipboard Manager に記録させない
+        if item.sensitivity >= .suspicious {
+            pb.setData(Data(), forType: NSPasteboard.PasteboardType(PrivacyGate.concealedType))
+        }
         monitor.ignoreCurrentChange()
         try? store.touch(item.id)
         revision += 1
@@ -135,8 +139,10 @@ final class AppModel: ObservableObject {
     private let thumbnails = NSCache<NSString, NSImage>()
 
     /// 縮小画像（メモリ上にキャッシュ）。`maxPixelSize` は長辺のピクセル数。
+    /// 写っている文字に Secret がある画像は、テキストの Secret と同じく肩越しに見られないよう出さない
+    /// （行は鍵のアイコン、プレビューはマスクした文字になる）。一時 Item の画像はすべてこれに当たる。
     func thumbnail(for item: ClipItem, maxPixelSize: Int = 96) -> NSImage? {
-        guard let image = item.image else { return nil }
+        guard let image = item.image, !item.isFullyMasked else { return nil }
         let key = "\(maxPixelSize)/\(image.fileName)" as NSString
         if let cached = thumbnails.object(forKey: key) { return cached }
         guard let url = store.imageURL(for: item),

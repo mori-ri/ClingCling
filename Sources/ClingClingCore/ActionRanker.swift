@@ -24,7 +24,7 @@ public struct ActionRanker {
         case .address: return [.copy, .openMaps]
         case .json: return [.copy, .format, .inspect]
         case .code: return [.copy, .explain]
-        case .image: return [.copy, .saveImage]
+        case .image: return [.copy, .pasteText, .saveImage]
         case .credential, .verificationCode, .other: return [.copy]
         }
     }
@@ -32,6 +32,10 @@ public struct ActionRanker {
     /// 表示する Action（最大 3 つ、左端が最も推奨）
     public func rank(_ item: ClipItem, stats: ActionStatsProvider?) -> [SmartAction] {
         var candidates = Self.baseCandidates(for: item.contentType, source: item.source)
+        // 文字が写っていない画像には、テキストで貼り付ける操作を出さない
+        if item.recognizedText == nil {
+            candidates.removeAll { $0 == .pasteText }
+        }
         if !item.externalAllowed {
             candidates.removeAll(where: \.sendsContentExternally)
         }

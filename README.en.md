@@ -39,6 +39,7 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
 - **Save as a file**: "Save to Downloads" in the action menu, or `⌘S`, writes the selected item to Downloads and shows it in Finder (text as UTF-8 `.txt`, JSON as `.json`, images as `.png`, named "ClingCling <copy date and time>"). Temporary items that never reach the disk (passwords, API keys, verification codes) can't be saved.
 - **Hover over a row** to see the full text in a card, along with when and in which app you copied it. Long text scrolls inside the card (up to the first 20,000 characters). Secrets stay masked, as in the list.
 - **Images** (screenshots, images copied from Preview or the web) stay in the history too, with thumbnails and a larger preview on hover. `↩` pastes the image; "Save to Downloads" writes a PNG.
+  - When an image is captured, macOS Vision **reads the text in it** (OCR, Japanese and English, entirely on your Mac). The text appears in the row and the preview and is searchable. "Paste as Text" in the action menu pastes the text instead of the image.
   - A copy that also carries text (such as spreadsheet cells) is treated as text. File copies from Finder are not captured.
 - AI Actions (explain, polish, shorten, translate) are turned on in Settings › AI. ClingCling never calls an API; it hands your instruction and the text to an AI.
   - **App** (default: the Claude and ChatGPT apps): brings the app forward, opens a new chat with ⌘N and pastes (optionally sends with ↩), then restores the clipboard. Needs the Accessibility permission.
@@ -71,8 +72,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | `ClingClingCore/SecretDetector` | Regular expressions for known secrets, credit cards (Luhn), high-entropy strings, personal information |
 | `ClingClingCore/ContentClassifier` | Rule-based classification (text / url / code / command / error / email / address / json / credential / verification_code / other) |
 | `ClingClingCore/ActionRanker` | Builds candidates from the type and source app, and ranks up to three using local usage statistics |
-| `ClingClingCore/ClipStore` | SQLite (`~/Library/Application Support/ClingCling`, 0600). Image files are `images/<hash>.png` in the same place (0600, removed with their row). Deduplication, retention, action statistics |
-| `ClingCling/*` | Menu bar, clipboard monitoring, global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings |
+| `ClingClingCore/ClipStore` | SQLite (`~/Library/Application Support/ClingCling`, 0600). Image files are `images/<hash>.png` in the same place (0600, removed with their row); text read from images is in the database. Deduplication, retention, action statistics |
+| `ClingCling/*` | Menu bar, clipboard monitoring, reading text in images (`TextRecognizer`, Vision), global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings |
 
 ## Privacy behavior
 
@@ -82,7 +83,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | Known secrets (API keys, JWTs, private keys, connection strings, card numbers…), verification codes | **Never written to disk**; kept in memory for 5 minutes, masked in the list and the card (verification codes stay readable), cannot be sent out |
 | High-entropy strings (unknown tokens, long hex) | Saved but local only. Only the matching part is masked in the list and the card (URL paths, file paths and CamelCase words don't count as tokens) |
 | Personal information (email addresses, phone numbers), addresses, Local Only apps, unclassifiable content | Saved but local only |
-| Images | Their content can't be inspected, so they are saved but always local only (markers, password managers and per-app policies apply as for text) |
+| Images | The text in them (OCR) goes through secret detection like copied text. If it contains a secret or verification code, the image is kept in memory for 5 minutes and never written to disk. Anything other than text, and misread text, can't be inspected, so images are always local only (markers, password managers and per-app policies apply as for text) |
 | Other text / url / code / command / error / json | AI / Search are offered only on your explicit action (with a confirmation first) |
 
 The history folder (`~/Library/Application Support/ClingCling`) is excluded from Time Machine. Backups made before the exclusion keep what they contain.

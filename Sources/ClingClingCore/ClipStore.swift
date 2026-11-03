@@ -13,10 +13,13 @@ public enum StoreError: Error, CustomStringConvertible {
 /// - `temporary` の Item（Secret / OTP）はディスクに書かず、メモリ上でのみ保持する。
 /// - 同じ内容の再コピーは `content_hash` で重複排除し、`copy_count` / `last_copied_at` を更新する。
 /// - 画像本体は DB の隣の `images/` に PNG で保存する（0600）。行が消えたらファイルも消す。
+///   一時 Item の画像（写っている文字に Secret があったもの）はファイルに書かず、メモリ上でのみ保持する。
 /// - メインスレッドからのみ使う前提。
 public final class ClipStore: ActionStatsProvider {
     private var db: OpaquePointer?
     private var ephemeral: [ClipItem] = []
+    /// 一時 Item の画像本体（ファイル名 → PNG）
+    private var ephemeralImages: [String: Data] = [:]
     /// 画像本体の保存先
     public let imagesDirectory: URL
 
@@ -77,7 +80,8 @@ public final class ClipStore: ActionStatsProvider {
             reasons TEXT NOT NULL DEFAULT '',
             image_file TEXT,
             image_width INTEGER,
-            image_height INTEGER
+            image_height INTEGER,
+            image_text TEXT
         );
         CREATE INDEX IF NOT EXISTS clips_last_copied ON clips(last_copied_at DESC);
         CREATE TABLE IF NOT EXISTS action_stats (
@@ -95,6 +99,14 @@ public final class ClipStore: ActionStatsProvider {
             position INTEGER NOT NULL
         );
         """)
+        // OCR の列が無い古い DB に足す
+        var columns: Set<String> = []
+        try query("PRAGMA table_info(clips)", []) { stmt in
+            if let name = Self.text(stmt, 1) { columns.insert(name) }
+        }
+        if !columns.contains("image_text") {
+            try exec("ALTER TABLE clips ADD COLUMN image_text TEXT;")
+        }
     }
 
     // MARK: - Clips
@@ -104,9 +116,20 @@ public final class ClipStore: ActionStatsProvider {
     public func save(_ item: ClipItem, imageData: Data? = nil) throws -> ClipItem {
         if let image = item.image {
             guard let imageData else { throw StoreError.sqlite("image data missing") }
-            try writeImage(imageData, named: image.fileName)
+            if item.isTemporary {
+                ephemeralImages[image.fileName] = imageData
+            } else {
+                try writeImage(imageData, named: image.fileName)
+            }
         }
         if item.isTemporary {
+            // 判定が変わる前にディスクへ保存していた同じ内容（文字を読み取る前の画像など）は消し、
+            // 一時 Item だけを残す。Pin したものはユーザーが残すと決めたので消さない。
+            if try !fetch(where: "content_hash = ? AND retention != 'pinned'", [item.contentHash]).isEmpty {
+                try run("DELETE FROM clips WHERE content_hash = ? AND retention != 'pinned'", [item.contentHash])
+                searchTextCache.removeAll()
+                removeOrphanImages()
+            }
             if let i = ephemeral.firstIndex(where: { $0.contentHash == item.contentHash }) {
                 ephemeral[i].lastCopiedAt = item.createdAt
                 ephemeral[i].expiresAt = item.expiresAt
@@ -126,28 +149,32 @@ public final class ClipStore: ActionStatsProvider {
             existing.sensitivity = item.sensitivity
             existing.externalAllowed = item.externalAllowed
             existing.reasons = item.reasons
+            // OCR の結果も最新のものにする（文字を読み取る前に保存した画像を、コピーし直したときなど）
+            if let image = item.image { existing.image?.text = image.text }
             try run("""
                 UPDATE clips SET last_copied_at = ?, copy_count = ?, source_bundle_id = ?, source_name = ?,
-                content_type = ?, sensitivity = ?, external_allowed = ?, reasons = ? WHERE id = ?
+                content_type = ?, sensitivity = ?, external_allowed = ?, reasons = ?, image_text = ? WHERE id = ?
                 """, [existing.lastCopiedAt.timeIntervalSince1970, existing.copyCount, existing.source.bundleID,
                       existing.source.name, existing.contentType.rawValue, existing.sensitivity.rawValue,
                       existing.externalAllowed ? 1 : 0, existing.reasons.joined(separator: "\n"),
-                      existing.id.uuidString])
+                      existing.image?.text, existing.id.uuidString])
             return existing
         }
 
         try run("""
             INSERT INTO clips (id, created_at, last_copied_at, content, content_hash, content_type, source_bundle_id,
-            source_name, sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            source_name, sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height,
+            image_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, [item.id.uuidString, item.createdAt.timeIntervalSince1970, item.lastCopiedAt.timeIntervalSince1970,
                   item.content, item.contentHash, item.contentType.rawValue, item.source.bundleID, item.source.name,
                   item.sensitivity.rawValue, item.retention.rawValue, item.copyCount, item.externalAllowed ? 1 : 0,
-                  item.reasons.joined(separator: "\n"), item.image?.fileName, item.image?.width, item.image?.height])
+                  item.reasons.joined(separator: "\n"), item.image?.fileName, item.image?.width, item.image?.height,
+                  item.image?.text])
         return item
     }
 
-    /// 新しい順。`query` は本文・アプリ名の部分一致（`SearchQuery`: 大文字小文字・全角半角・かなの違いを無視）。
+    /// 新しい順。`query` は本文（画像は読み取った文字）・アプリ名の部分一致（`SearchQuery`: 大文字小文字・全角半角・かなの違いを無視）。
     public func recent(limit: Int = 200, query: String = "", pinnedOnly: Bool = false, now: Date = Date()) throws -> [ClipItem] {
         let search = SearchQuery(query)
         let whereSQL = pinnedOnly ? "retention = 'pinned'" : "1"
@@ -171,17 +198,21 @@ public final class ClipStore: ActionStatsProvider {
         return items
     }
 
-    /// 正規化済みの検索対象（本文 + アプリ名）。打鍵ごとに作り直さないよう内容のハッシュで覚えておく。
+    /// 正規化済みの検索対象（本文 + 画像から読み取った文字 + アプリ名）。打鍵ごとに作り直さないよう内容のハッシュで覚えておく。
     /// 一時 Item（Secret / OTP）は期限後にメモリへ残らないようキャッシュしない。
     private var searchTextCache: [String: String] = [:]
 
     private func matches(_ search: SearchQuery, _ item: ClipItem) -> Bool {
-        let key = item.contentHash + "\u{1F}" + (item.source.name ?? "")
+        // 文字を読み取る前に保存した画像は、コピーし直すと同じハッシュのまま読み取った文字が付く
+        let key = item.contentHash + "\u{1F}" + (item.source.name ?? "") + (item.recognizedText == nil ? "" : "\u{1F}text")
         let text: String
         if let cached = searchTextCache[key] {
             text = cached
         } else {
-            text = SearchQuery.normalize(item.content + "\n" + (item.source.name ?? ""))
+            var parts = [item.content]
+            if let recognized = item.recognizedText { parts.append(recognized) }
+            parts.append(item.source.name ?? "")
+            text = SearchQuery.normalize(parts.joined(separator: "\n"))
             if !item.isTemporary {
                 if searchTextCache.count > 4_000 { searchTextCache.removeAll() }
                 searchTextCache[key] = text
@@ -207,6 +238,7 @@ public final class ClipStore: ActionStatsProvider {
 
     public func delete(_ id: UUID) throws {
         ephemeral.removeAll { $0.id == id }
+        dropUnreferencedEphemeralImages()
         searchTextCache.removeAll()
         try run("DELETE FROM clips WHERE id = ?", [id.uuidString])
         removeOrphanImages()
@@ -214,6 +246,7 @@ public final class ClipStore: ActionStatsProvider {
 
     public func clear(keepPinned: Bool = true) throws {
         ephemeral.removeAll()
+        ephemeralImages.removeAll()
         searchTextCache.removeAll()
         try run(keepPinned ? "DELETE FROM clips WHERE retention != 'pinned'" : "DELETE FROM clips", [])
         try exec("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;")
@@ -223,6 +256,7 @@ public final class ClipStore: ActionStatsProvider {
     /// 期限切れの一時 Item、保存期間・件数を超えた Item を削除する（Pin は対象外）
     public func prune(now: Date = Date(), retentionDays: Int, historyLimit: Int) throws {
         ephemeral.removeAll { ($0.expiresAt ?? .distantFuture) <= now }
+        dropUnreferencedEphemeralImages()
         if retentionDays > 0 {
             let cutoff = now.addingTimeInterval(-Double(retentionDays) * 86_400).timeIntervalSince1970
             try run("DELETE FROM clips WHERE retention != 'pinned' AND last_copied_at < ?", [cutoff])
@@ -238,12 +272,21 @@ public final class ClipStore: ActionStatsProvider {
 
     // MARK: - Images
 
+    /// 画像ファイルの場所。メモリ上だけにある一時 Item の画像は nil（`imageData(for:)` で読む）
     public func imageURL(for item: ClipItem) -> URL? {
-        item.image.map { imagesDirectory.appendingPathComponent($0.fileName) }
+        guard let image = item.image, !item.isTemporary else { return nil }
+        return imagesDirectory.appendingPathComponent(image.fileName)
     }
 
     public func imageData(for item: ClipItem) -> Data? {
-        imageURL(for: item).flatMap { try? Data(contentsOf: $0) }
+        if item.isTemporary, let image = item.image { return ephemeralImages[image.fileName] }
+        return imageURL(for: item).flatMap { try? Data(contentsOf: $0) }
+    }
+
+    /// 期限切れ・削除した一時 Item の画像をメモリから消す
+    private func dropUnreferencedEphemeralImages() {
+        let live = Set(ephemeral.compactMap { $0.image?.fileName })
+        ephemeralImages = ephemeralImages.filter { live.contains($0.key) }
     }
 
     private func writeImage(_ data: Data, named name: String) throws {
@@ -363,12 +406,13 @@ public final class ClipStore: ActionStatsProvider {
         var items: [ClipItem] = []
         try query("""
             SELECT id, created_at, last_copied_at, content, content_hash, content_type, source_bundle_id, source_name,
-            sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height
+            sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height, image_text
             FROM clips WHERE \(clause)
             """, params) { s in
             let reasons = Self.text(s, 12) ?? ""
             let image = Self.text(s, 13).map {
-                ClipImage(fileName: $0, width: Int(sqlite3_column_int64(s, 14)), height: Int(sqlite3_column_int64(s, 15)))
+                ClipImage(fileName: $0, width: Int(sqlite3_column_int64(s, 14)), height: Int(sqlite3_column_int64(s, 15)),
+                          text: Self.text(s, 16) ?? "")
             }
             items.append(ClipItem(
                 id: UUID(uuidString: Self.text(s, 0) ?? "") ?? UUID(),
