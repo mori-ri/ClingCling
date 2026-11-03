@@ -112,7 +112,7 @@ struct PopupView: View {
                                         } action: { layout.selectedRowY = $0 }
                                     }
                                 }
-                                // 画像の拡大プレビューを行の横に出すための位置
+                                // プレビューを行の横に出すための位置
                                 .background {
                                     if vm.hoveredID == row.id {
                                         Color.clear.onGeometryChange(for: CGRect.self) {
@@ -258,7 +258,7 @@ struct ClipRow: View {
             }
 
             Text(Presentation.highlighted(Presentation.preview(item), query: query,
-                                          masked: Presentation.isFullyMasked(item), selected: selected))
+                                          masked: item.isFullyMasked, selected: selected))
                 .font(.system(size: 13, design: Presentation.isMonospaced(item.contentType) ? .monospaced : .default))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -296,7 +296,7 @@ struct ClipRow: View {
                 .fill(selected ? Theme.accent : hovered ? Color.primary.opacity(0.06) : .clear)
         )
         .contentShape(Rectangle())
-        .help(Presentation.meta(item))
+        .accessibilityHint(Presentation.meta(item))
     }
 }
 
@@ -564,10 +564,15 @@ private struct PanelButton: View {
 extension View {
     /// メニューと同じ半透明の面・細い縁・影
     func popupSurface(cornerRadius: CGFloat) -> some View {
+        popupFill(cornerRadius: cornerRadius)
+            .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
+    }
+
+    /// `popupSurface` の影のない面
+    func popupFill(cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return background(Theme.popupTint, in: shape)
             .background(.regularMaterial, in: shape)
             .overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
     }
 }

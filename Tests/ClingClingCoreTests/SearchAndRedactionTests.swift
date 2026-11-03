@@ -117,3 +117,45 @@ struct BackupExclusionTests {
         #expect(values.isExcludedFromBackup == true)
     }
 }
+
+struct ClipDisplayTests {
+    let detector = SecretDetector()
+    let token = "aB3xK9mQ2vL7nR4tY8pZ1wC6"
+
+    func make(_ content: String, type: ContentType = .text, sensitivity: Sensitivity = .normal) -> ClipItem {
+        ClipItem(createdAt: Date(), content: content, contentHash: ContentHash.sha256(content), contentType: type,
+                 source: .unknown, sensitivity: sensitivity, retention: .normal, externalAllowed: false,
+                 expiresAt: nil, reasons: [])
+    }
+
+    @Test func fullTextKeepsEveryLine() {
+        let text = (1...10).map { "行 \($0)" }.joined(separator: "\n")
+        #expect(make(text).fullText(limit: 1_000, detector: detector) == text)
+    }
+
+    @Test func fullTextNeverShowsLaterLinesOfASecret() {
+        let item = make("-----BEGIN PRIVATE KEY-----\na\nb\nc\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----",
+                        sensitivity: .secret)
+        let text = item.fullText(limit: 1_000, detector: detector)
+        #expect(!text.contains("MIIEvQ"))
+        #expect(text == item.rowText(detector: detector))
+    }
+
+    @Test func fullTextRedactsTokensOnEveryLine() {
+        let item = make("1\n2\n3\n4\nid: \(token)\n末尾", sensitivity: .suspicious)
+        let text = item.fullText(limit: 1_000, detector: detector)
+        #expect(!text.contains(token))
+        #expect(text.hasSuffix("\n末尾"))
+    }
+
+    @Test func fullTextDropsTokenCutByTheLimit() {
+        let item = make("\(String(repeating: "あ", count: 10)) \(token)", sensitivity: .suspicious)
+        let text = item.fullText(limit: 21, detector: detector)
+        #expect(text == "\(String(repeating: "あ", count: 10)) ")
+    }
+
+    @Test func fullTextShowsVerificationCode() {
+        let item = make("認証コード 123456", type: .verificationCode, sensitivity: .secret)
+        #expect(item.fullText(limit: 1_000, detector: detector) == "認証コード 123456")
+    }
+}

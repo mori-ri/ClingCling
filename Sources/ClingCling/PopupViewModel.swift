@@ -63,32 +63,34 @@ final class PopupViewModel: ObservableObject {
     /// `rows` の先頭からこの件数がピン留め（検索中は 0）
     @Published private(set) var pinnedCount = 0
     @Published var selection = 0 { didSet { if selection != oldValue { actionsOpen = false } } }
-    @Published var mode: Mode = .list { didSet { if case .list = mode {} else { hideImagePreview() } } }
+    @Published var mode: Mode = .list { didSet { if case .list = mode {} else { hidePreview() } } }
     @Published var notice: String?
     @Published var dontAskAgain = false
-    @Published var hoveredID: UUID? { didSet { if hoveredID != oldValue { scheduleImagePreview() } } }
-    /// マウスを載せている行の位置（"popup" 座標系）。画像プレビューを行の横に出すのに使う。
-    var hoveredRowFrame: CGRect = .zero { didSet { if hoveredRowFrame != oldValue { moveImagePreview() } } }
-    /// マウスを載せている画像 Item の拡大プレビュー
-    @Published private(set) var imagePreview: ImagePreview?
+    @Published var hoveredID: UUID? { didSet { if hoveredID != oldValue { schedulePreview() } } }
+    /// マウスを載せている行の位置（"popup" 座標系）。プレビューを行の横に出すのに使う。
+    var hoveredRowFrame: CGRect = .zero { didSet { if hoveredRowFrame != oldValue { movePreview() } } }
+    /// マウスを載せている Item のプレビュー
+    @Published private(set) var preview: Preview?
+    /// マウスがプレビューのカードの上にある（長い本文をスクロールしている間は閉じない）
+    var previewHovered = false { didSet { if previewHovered != oldValue { schedulePreview() } } }
     @Published var actionsOpen = false {
         didSet {
             if actionsOpen != oldValue { actionIndex = 0 }
             // アクションメニューにもプレビューが出るので重ねない
-            if actionsOpen { hideImagePreview() }
+            if actionsOpen { hidePreview() }
         }
     }
     @Published var actionIndex = 0
     /// 確認画面で選んでいる AI の送り先
     @Published var destinationID: UUID?
 
-    struct ImagePreview: Equatable {
+    struct Preview: Equatable {
         let item: ClipItem
         /// 行の位置（"popup" 座標系）
         let rowFrame: CGRect
     }
 
-    private var imagePreviewTask: Task<Void, Never>?
+    private var previewTask: Task<Void, Never>?
 
     let model: AppModel
     /// ポップアップを閉じる（`paste` なら直前のアプリへ貼り付け）
@@ -110,7 +112,7 @@ final class PopupViewModel: ObservableObject {
         notice = nil
         actionsOpen = false
         hoveredID = nil
-        hideImagePreview()
+        hidePreview()
         if query.isEmpty { reload(resetSelection: true) } else { query = "" }
     }
 
@@ -128,42 +130,42 @@ final class PopupViewModel: ObservableObject {
         selection = min(selection, max(rows.count - 1, 0))
         if rows.isEmpty { actionsOpen = false }
         // 削除などで行が消えたらプレビューも閉じる
-        if let preview = imagePreview, !rows.contains(where: { $0.id == preview.item.id }) { hideImagePreview() }
+        if let preview, !rows.contains(where: { $0.id == preview.item.id }) { hidePreview() }
     }
 
     var selectedRow: Row? { rows.indices.contains(selection) ? rows[selection] : nil }
 
-    // MARK: - Image preview
+    // MARK: - Preview
 
-    /// 画像の行にマウスを少し留めたら拡大プレビューを出す。通り過ぎるだけでは出さない。
-    private func scheduleImagePreview() {
-        imagePreviewTask?.cancel()
-        guard let id = hoveredID, !actionsOpen, case .list = mode,
-              let item = rows.first(where: { $0.id == id })?.item, item.image != nil else {
-            imagePreview = nil
+    /// 行にマウスを少し留めたらプレビューを出す。通り過ぎるだけでは出さない。
+    /// 開いているときも少し待つ。すぐに切り替えると、カードへ斜めに動かす途中の行に変わってしまう。
+    /// 閉じるのはさらに待つ。行の端からカードまでの隙間をゆっくり横切っても閉じないように。
+    private func schedulePreview() {
+        previewTask?.cancel()
+        guard !previewHovered else { return }
+        guard !actionsOpen, case .list = mode else {
+            hidePreview()
             return
         }
-        // すでに別の画像を出しているなら、待たずに切り替える
-        if imagePreview != nil {
-            imagePreview = ImagePreview(item: item, rowFrame: hoveredRowFrame)
-            return
-        }
-        imagePreviewTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard let self, !Task.isCancelled, self.hoveredID == id, !self.actionsOpen else { return }
-            self.imagePreview = ImagePreview(item: item, rowFrame: self.hoveredRowFrame)
+        let delay = preview == nil ? 250 : hoveredID == nil ? 400 : 150
+        previewTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(delay))
+            guard let self, !Task.isCancelled else { return }
+            let item = self.rows.first { $0.id == self.hoveredID }?.item
+            self.preview = item.map { Preview(item: $0, rowFrame: self.hoveredRowFrame) }
         }
     }
 
-    private func moveImagePreview() {
-        guard let preview = imagePreview, preview.item.id == hoveredID else { return }
-        imagePreview = ImagePreview(item: preview.item, rowFrame: hoveredRowFrame)
+    private func movePreview() {
+        guard let preview, preview.item.id == hoveredID else { return }
+        self.preview = Preview(item: preview.item, rowFrame: hoveredRowFrame)
     }
 
-    private func hideImagePreview() {
-        imagePreviewTask?.cancel()
-        imagePreviewTask = nil
-        if imagePreview != nil { imagePreview = nil }
+    private func hidePreview() {
+        previewHovered = false
+        previewTask?.cancel()
+        previewTask = nil
+        if preview != nil { preview = nil }
     }
 
     func moveSelection(_ delta: Int) {

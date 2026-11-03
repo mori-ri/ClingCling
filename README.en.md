@@ -37,6 +37,7 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
   - Type to filter (case, full/half width and hiragana/katakana are ignored; spaces mean AND) / `↑↓` select / `↩` or click to paste / `1–9` paste the nth item (when the search field is empty)
   - `→` action menu / `⌘1–3` Smart Actions / `⌘4–9` your own AI Actions / `⌘S` save to Downloads / `⌘P` pin / `⌘⌫` delete / `esc` close
 - **Save as a file**: "Save to Downloads" in the action menu, or `⌘S`, writes the selected item to Downloads and shows it in Finder (text as UTF-8 `.txt`, JSON as `.json`, images as `.png`, named "ClingCling <copy date and time>"). Temporary items that never reach the disk (passwords, API keys, verification codes) can't be saved.
+- **Hover over a row** to see the full text in a card, along with when and in which app you copied it. Long text scrolls inside the card (up to the first 20,000 characters). Secrets stay masked, as in the list.
 - **Images** (screenshots, images copied from Preview or the web) stay in the history too, with thumbnails and a larger preview on hover. `↩` pastes the image; "Save to Downloads" writes a PNG.
   - A copy that also carries text (such as spreadsheet cells) is treated as text. File copies from Finder are not captured.
 - AI Actions (explain, polish, shorten, translate) are turned on in Settings › AI. ClingCling never calls an API; it hands your instruction and the text to an AI.
@@ -78,8 +79,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | Input | Handling |
 |---|---|
 | Concealed / transient markers, password managers, Never Capture apps | Not captured |
-| Known secrets (API keys, JWTs, private keys, connection strings, card numbers…), verification codes | **Never written to disk**; kept in memory for 5 minutes, masked in the list, cannot be sent out |
-| High-entropy strings (unknown tokens, long hex) | Saved but local only. Only the matching part is masked in the list (URL paths, file paths and CamelCase words don't count as tokens) |
+| Known secrets (API keys, JWTs, private keys, connection strings, card numbers…), verification codes | **Never written to disk**; kept in memory for 5 minutes, masked in the list and the card, cannot be sent out |
+| High-entropy strings (unknown tokens, long hex) | Saved but local only. Only the matching part is masked in the list and the card (URL paths, file paths and CamelCase words don't count as tokens) |
 | Personal information (email addresses, phone numbers), addresses, Local Only apps, unclassifiable content | Saved but local only |
 | Images | Their content can't be inspected, so they are saved but always local only (markers, password managers and per-app policies apply as for text) |
 | Other text / url / code / command / error / json | AI / Search are offered only on your explicit action (with a confirmation first) |
