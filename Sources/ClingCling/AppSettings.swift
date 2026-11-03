@@ -51,6 +51,24 @@ final class AppSettings: ObservableObject {
     }
     /// 起動したときの `appLanguage`。画面に出ている言語はこちら。
     let appLanguageAtLaunch: AppLanguage
+    /// 起動時と 1 日 1 回、GitHub に新しいバージョンとお知らせを問い合わせる（`UpdateChecker`）。
+    /// 許可なく通信しないよう既定はオフで、2 回目の起動時に一度だけ聞く（`shouldAskAboutUpdateChecks`）。
+    @Published var checksForUpdates: Bool {
+        didSet {
+            defaults.set(checksForUpdates, forKey: "checksForUpdates")
+            // 設定で選んだ人には聞かない
+            askedAboutUpdateChecks = true
+        }
+    }
+    /// 新しいバージョンを確認するか、もう聞いたか
+    private var askedAboutUpdateChecks: Bool {
+        get { defaults.bool(forKey: "askedAboutUpdateChecks") }
+        set { defaults.set(newValue, forKey: "askedAboutUpdateChecks") }
+    }
+    /// お知らせのページで最後に見たリリース。一度も開いていなければ nil
+    @Published var lastSeenReleaseNotes: String? {
+        didSet { defaults.set(lastSeenReleaseNotes, forKey: "lastSeenReleaseNotes") }
+    }
 
     // Privacy
     @Published var neverSavePasswords: Bool { didSet { defaults.set(neverSavePasswords, forKey: "neverSavePasswords") } }
@@ -91,6 +109,7 @@ final class AppSettings: ObservableObject {
             "retentionDays": 30,
             "pasteAfterCopy": false,
             "isPaused": false,
+            "checksForUpdates": false,
             "neverSavePasswords": true,
             "neverSaveVerificationCodes": true,
             "excludePasswordManagers": true,
@@ -106,6 +125,8 @@ final class AppSettings: ObservableObject {
         let language = defaults.string(forKey: "appLanguage").flatMap(AppLanguage.init) ?? .system
         appLanguage = language
         appLanguageAtLaunch = language
+        checksForUpdates = defaults.bool(forKey: "checksForUpdates")
+        lastSeenReleaseNotes = defaults.string(forKey: "lastSeenReleaseNotes")
         neverSavePasswords = defaults.bool(forKey: "neverSavePasswords")
         neverSaveVerificationCodes = defaults.bool(forKey: "neverSaveVerificationCodes")
         excludePasswordManagers = defaults.bool(forKey: "excludePasswordManagers")
@@ -120,6 +141,17 @@ final class AppSettings: ObservableObject {
             .flatMap { try? JSONDecoder().decode([CustomAIAction].self, from: $0) } ?? []
         appPolicies = defaults.data(forKey: "appPolicies")
             .flatMap { try? JSONDecoder().decode([AppPolicyEntry].self, from: $0) } ?? []
+    }
+
+    /// 起動を数え、新しいバージョンを確認するか聞くときなら true を返す（聞いたことにする）。
+    /// 最初の起動はアクセシビリティの許可などで忙しいので、2 回目の起動で聞く。
+    func shouldAskAboutUpdateChecks() -> Bool {
+        guard !askedAboutUpdateChecks else { return false }
+        let launches = defaults.integer(forKey: "launchCount") + 1
+        defaults.set(launches, forKey: "launchCount")
+        guard launches >= 2 else { return false }
+        askedAboutUpdateChecks = true
+        return true
     }
 
     var defaultDestination: AIDestination? {

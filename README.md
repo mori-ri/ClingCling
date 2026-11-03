@@ -5,7 +5,7 @@
 # ClingCling
 
 コピーした内容を理解して、次の操作を提案する macOS 用クリップボード（Intent-Aware Clipboard）。
-**Privacy First / Local First** — 判定はすべて Mac の中で行い、ClingCling 自身は通信しません。ローカルの判定で問題が見つからなかったものだけを、ユーザーの明示操作時に限って AI（Claude / ChatGPT のアプリや Web）に渡します。判定には限界があります（[Privacy の振る舞い](#privacy-の振る舞い)）。API キーは不要です。
+**Privacy First / Local First** — 判定はすべて Mac の中で行い、ClingCling 自身は許可なく通信しません（通信するのは、許可したときの新しいバージョンの確認だけです）。ローカルの判定で問題が見つからなかったものだけを、ユーザーの明示操作時に限って AI（Claude / ChatGPT のアプリや Web）に渡します。判定には限界があります（[Privacy の振る舞い](#privacy-の振る舞い)）。API キーは不要です。
 
 ## 必要なもの
 
@@ -60,6 +60,7 @@ open build/ClingCling.app
   - **自作の Action**: Settings → AI で「名前 + 指示文（+ 送り先）」を登録すると、アクションメニューの末尾に並ぶ（例: 「3 行で要約」「敬語に直す」）
 
 - 表示言語は日本語と英語に対応。既定では macOS の言語に合わせ、設定 › 一般 で選べます（再起動で反映）
+- **新しいバージョンのお知らせ**: 既定ではオフで、2 回目の起動時に一度だけ「新しいバージョンを自動で確認しますか？」と聞きます。許可すると、起動時と 1 日 1 回 GitHub にリリースの一覧を問い合わせ、新しいバージョンが出たらメニューバーと設定のサイドバーでお知らせします（ダウンロードはボタンから。自動ではインストールしません）。各バージョンの新機能は 設定 › お知らせ で確認できます。設定 › 一般 でいつでも切り替えられます
 - 感想や要望は、設定のサイドバーかメニューバーの「フィードバック・要望」から GitHub Discussions へ送れます
 
 アイコンはロゴから生成します（ロゴを差し替えたら再実行）:
@@ -87,7 +88,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | `ClingClingCore/FileKind` | コピーしたファイルの種類（拡張子とフォルダかどうかだけで判定。中身は読まない） |
 | `ClingClingCore/ActionRanker` | 分類＋コピー元アプリで候補を作り、ローカル利用統計で並べ替えて最大 3 つ |
 | `ClingClingCore/ClipStore` | SQLite（`~/Library/Application Support/ClingCling`、0600）。画像本体は同じ場所の `images/<hash>.png`（0600、行が消えるとファイルも削除）、読み取った文字は DB。重複排除、保存期間、Action 統計、First Action Selection Rate |
-| `ClingCling/*` | メニューバー、Clipboard 監視、画像の文字の読み取り（`TextRecognizer`、Vision）、⌘⇧V（Carbon HotKey）、ポップアップ、Action 実行、AI への受け渡し（`AIHandoff`）、設定 |
+| `ClingClingCore/UpdateChecker`・`ReleaseNotes` | 新しいバージョンの確認（GitHub のリリース一覧）と、お知らせのページに出すリリースノートの整形 |
+| `ClingCling/*` | メニューバー、Clipboard 監視、画像の文字の読み取り（`TextRecognizer`、Vision）、⌘⇧V（Carbon HotKey）、ポップアップ、Action 実行、AI への受け渡し（`AIHandoff`）、設定、お知らせ |
 
 ## Privacy の振る舞い
 
@@ -100,6 +102,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 画像 | 写っている文字（OCR）をテキストと同じく Secret 検出にかける。Secret や認証コードが写っていれば、画像もディスクに書かずメモリで 5 分保持。文字以外の中身や読み違いまでは検査できないので、常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | ファイル | パスだけを保存し、中身は読まない（「中身をテキストでコピー」を選んだときだけ読む）。常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | それ以外の text / url / code / command / error / json | 明示操作時のみ AI / Search を提示（渡す前に確認） |
+
+ClingCling が自分から通信するのは、新しいバージョンの確認（起動時と 1 日 1 回、`api.github.com` にリリースの一覧を問い合わせる）だけで、既定ではオフです。2 回目の起動時に一度だけ聞き、許可したときだけ確認します（設定 › 一般 の「新しいバージョンを確認する」でいつでも切り替え可）。オフの間は、お知らせ のページで「読み込む」を押したときだけ問い合わせます。問い合わせにコピーした内容や設定は含めません。
 
 履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。
 

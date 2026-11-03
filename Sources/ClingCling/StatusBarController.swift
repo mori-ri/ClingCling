@@ -8,14 +8,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let model: AppModel
     private let openPopup: () -> Void
-    private let openSettings: () -> Void
+    private let openSettings: (SettingsPageID?) -> Void
     private var openItem: NSMenuItem!
+    private var downloadItem: NSMenuItem!
+    private var whatsNewItem: NSMenuItem!
+    private var updateSeparator: NSMenuItem!
     private var pauseItem: NSMenuItem!
     private var permissionItem: NSMenuItem!
     private var permissionSeparator: NSMenuItem!
     private var cancellable: AnyCancellable?
 
-    init(model: AppModel, openPopup: @escaping () -> Void, openSettings: @escaping () -> Void) {
+    init(model: AppModel, openPopup: @escaping () -> Void, openSettings: @escaping (SettingsPageID?) -> Void) {
         self.model = model
         self.openPopup = openPopup
         self.openSettings = openSettings
@@ -27,12 +30,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         permissionSeparator = .separator()
         menu.addItem(permissionItem)
         menu.addItem(permissionSeparator)
+        downloadItem = NSMenuItem(title: "", action: #selector(downloadUpdate), keyEquivalent: "")
+        whatsNewItem = NSMenuItem(title: String(localized: "新機能を見る…"), action: #selector(openNews), keyEquivalent: "")
+        updateSeparator = .separator()
+        menu.addItem(downloadItem)
+        menu.addItem(whatsNewItem)
+        menu.addItem(updateSeparator)
         openItem = NSMenuItem(title: String(localized: "クリップボードを開く"), action: #selector(openClipboard), keyEquivalent: "")
         menu.addItem(openItem)
         pauseItem = NSMenuItem(title: String(localized: "キャプチャを一時停止"), action: #selector(togglePause), keyEquivalent: "")
         menu.addItem(pauseItem)
         menu.addItem(NSMenuItem(title: String(localized: "履歴を消去…"), action: #selector(clearHistory), keyEquivalent: ""))
         menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: String(localized: "お知らせ…"), action: #selector(openNews), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: String(localized: "設定…"), action: #selector(settings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: String(localized: "フィードバック・要望を送る…"), action: #selector(sendFeedback), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -59,6 +69,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let granted = AXIsProcessTrusted()
         permissionItem.isHidden = granted
         permissionSeparator.isHidden = granted
+        let version = model.updates.availableVersion
+        if let version {
+            downloadItem.title = String(localized: "新しいバージョン \(version) をダウンロード")
+        }
+        for item in [downloadItem, whatsNewItem, updateSeparator] { item?.isHidden = version == nil }
         // メニューの表示だけなので、1 文字で表せないキーは添えない
         let shortcut = model.settings.shortcut
         openItem.keyEquivalent = shortcut.keyEquivalent ?? ""
@@ -68,7 +83,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func openAccessibilitySettings() { ActionExecutor.openAccessibilitySettings() }
     @objc private func sendFeedback() { ProjectLinks.open(ProjectLinks.newFeedback) }
     @objc private func openClipboard() { openPopup() }
-    @objc private func settings() { openSettings() }
+    @objc private func settings() { openSettings(nil) }
+    @objc private func openNews() { openSettings(.news) }
+    @objc private func downloadUpdate() { ProjectLinks.open(ProjectLinks.latestRelease) }
     @objc private func togglePause() { model.settings.isPaused.toggle() }
 
     @objc private func clearHistory() {

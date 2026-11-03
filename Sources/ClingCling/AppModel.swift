@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 final class AppModel: ObservableObject {
     let settings: AppSettings
     let store: ClipStore
+    /// 新しいバージョンの確認と、お知らせのページのリリースノート
+    let updates: UpdateChecker
     /// ポップアップを開くグローバルショートカット
     var hotKey: HotKey?
     private let gate = PrivacyGate()
@@ -20,11 +22,16 @@ final class AppModel: ObservableObject {
     init(settings: AppSettings) throws {
         self.settings = settings
         store = try ClipStore(path: ClipStore.defaultURL())
+        updates = UpdateChecker(
+            currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            isEnabled: { settings.checksForUpdates },
+            fetchReleases: UpdateChecker.releasesFetcher(url: ProjectLinks.releasesAPI))
         monitor = ClipboardMonitor { [weak self] input in self?.capture(input) }
     }
 
     func start() {
         monitor.start()
+        updates.start()
         prune()
         let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.prune() }
