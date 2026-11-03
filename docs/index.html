@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ClingCling｜次の操作を提案する Mac のクリップボード</title>
+<meta name="description" content="URL なら開く、エラーなら AI に聞く、API キーなら残さない。ClingCling はコピーした内容を Mac の中で見分けて、次の操作を提案するメニューバーアプリです。">
+<meta name="theme-color" content="#ff6b84">
+<link rel="canonical" href="https://mori-ri.github.io/ClingCling/">
+<link rel="alternate" hreflang="ja" href="https://mori-ri.github.io/ClingCling/">
+<link rel="alternate" hreflang="en" href="https://mori-ri.github.io/ClingCling/en/">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ClingCling">
+<meta property="og:description" content="URL なら開く。エラーなら AI に聞く。API キーなら残さない。コピーした内容を Mac の中で見分けるクリップボード。">
+<meta property="og:url" content="https://mori-ri.github.io/ClingCling/">
+<meta property="og:image" content="https://mori-ri.github.io/ClingCling/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="assets/DelaGothicOne-subset.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="./"><img src="assets/mark-white.svg" alt="">ClingCling</a>
+      <nav aria-label="ページ">
+        <a href="en/" lang="en" hreflang="en">English</a>
+        <a class="optional" href="https://github.com/mori-ri/ClingCling">GitHub</a>
+        <a class="pill" href="https://github.com/mori-ri/ClingCling/releases/latest">ダウンロード</a>
+      </nav>
+    </div>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>
+          <button class="say" type="button" aria-pressed="true">URL は開く。</button>
+          <button class="say" type="button" aria-pressed="false">エラーは AI に聞く。</button>
+          <button class="say" type="button" aria-pressed="false">API キーは残さない。</button>
+        </h1>
+        <p class="hero-lead">ClingCling はコピーした内容を Mac の中で見分けて、次の操作を提案するクリップボードです。⌘⇧V でカーソルの横に履歴を開き、そのままキーボードで選べます。</p>
+        <div class="cta">
+          <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest">ダウンロード</a>
+          <p>macOS 14 以降。GitHub の Releases ページが開きます。</p>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <img class="rings" src="assets/mark-white.svg" alt="">
+        <div class="pop-row-wrap opens" aria-label="ClingCling のポップアップの見本">
+          <div class="pop list"></div>
+          <div class="pop menu"></div>
+        </div>
+        <p class="stage-note">見出しの行を押すと、提案が切り替わります。</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="band" id="kinds">
+  <div class="wrap">
+    <div class="head">
+      <h2>コピーしたものごとに、提案が変わる</h2>
+      <p class="lead">左にあるほどおすすめの操作です。使うほど、よく選ぶ操作が前に来ます。学習も統計も Mac の中だけで行います。</p>
+    </div>
+
+    <table class="kinds">
+      <thead>
+        <tr><th scope="col">種類</th><th scope="col">コピーしたもの</th><th scope="col">提案される操作</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">URL</th><td class="sample"><code>https://example.com/report/2026-q3</code></td><td><ul class="suggest"><li>ブラウザで開く</li><li>Markdown リンクをコピー</li><li>コピー</li></ul></td></tr>
+        <tr><th scope="row">エラー</th><td class="sample"><code>TypeError: x is not a function</code></td><td><ul class="suggest"><li>説明する</li><li>Web で検索</li><li>コピー</li></ul></td></tr>
+        <tr><th scope="row">コマンド</th><td class="sample"><code>git log --oneline -5</code></td><td><ul class="suggest"><li>コピー</li><li>Terminal で実行</li><li>説明する</li></ul></td></tr>
+        <tr><th scope="row">文章</th><td class="sample"><code class="plain">来週の打ち合わせは水曜 15 時からです。</code></td><td><ul class="suggest"><li>コピー</li><li>文章を整える</li><li>短くする</li></ul></td></tr>
+        <tr><th scope="row">JSON</th><td class="sample"><code>{"app":"ClingCling","local":true}</code></td><td><ul class="suggest"><li>コピー</li><li>JSON を整形</li><li>JSON の構造を見る</li></ul></td></tr>
+        <tr><th scope="row">コード</th><td class="sample"><code>const total = items.length;</code></td><td><ul class="suggest"><li>コピー</li><li>説明する</li></ul></td></tr>
+        <tr><th scope="row">メール</th><td class="sample"><code>hello@example.com</code></td><td><ul class="suggest"><li>コピー</li><li>メールを作成</li></ul></td></tr>
+        <tr><th scope="row">住所</th><td class="sample"><code class="plain">〒100-0001 東京都千代田区千代田 1-1</code></td><td><ul class="suggest"><li>コピー</li><li>マップで開く</li></ul></td></tr>
+        <tr><th scope="row">認証コード</th><td class="sample"><code>482913</code></td><td><ul class="suggest"><li>コピー</li><li class="aside">5 分で消えます</li></ul></td></tr>
+        <tr><th scope="row">画像</th><td class="sample"><em>スクリーンショット、Web やプレビューの画像</em></td><td><ul class="suggest"><li>コピー</li><li>ダウンロードに保存</li></ul></td></tr>
+      </tbody>
+    </table>
+    <p class="try mac note">ここで試せます。見本を押して <kbd>⌘C</kbd>、続けて <kbd>⌘⇧V</kbd> を押すと、その場でポップアップが開きます。このページのどの文章でも同じです。判定はブラウザの中で動き、コピーした文字はどこにも送りません。</p>
+
+    <div class="keys-grid">
+      <div>
+        <h3>キーボードだけで終わる</h3>
+        <dl class="keys">
+          <div><dt><kbd>⌘⇧V</kbd></dt><dd>カーソルの横に開く</dd></div>
+          <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>履歴を選ぶ</dd></div>
+          <div><dt><kbd>↩</kbd></dt><dd>貼り付ける</dd></div>
+          <div><dt><kbd>1–9</kbd></dt><dd>n 番目をすぐ貼り付ける</dd></div>
+          <div><dt><kbd>→</kbd></dt><dd>操作の一覧を開く</dd></div>
+          <div><dt><kbd>⌘1–3</kbd></dt><dd>提案された操作を実行する</dd></div>
+          <div><dt><kbd>⌘S</kbd></dt><dd>ダウンロードに保存する</dd></div>
+          <div><dt><kbd>⌘P</kbd></dt><dd>ピン留めする</dd></div>
+        </dl>
+      </div>
+      <div>
+        <h3>履歴は入力するだけで絞り込める</h3>
+        <p>大文字と小文字、全角と半角、ひらがなとカタカナの違いは無視します。空白で区切ると AND 検索です。日本語の変換中は、確定や移動のキーを入力の邪魔にならないよう IME に渡します。</p>
+        <p>カーソルの位置が取れないアプリでは、マウスの位置に開きます。ショートカットは設定で変更できます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band navy" id="privacy">
+  <div class="wrap">
+    <div class="head">
+      <h2>ClingCling は通信しません</h2>
+      <p class="lead">判定はすべて Mac の中で行います。コピーしたものは、種類によって届く範囲を変えています。ほとんどの内容は Mac の外に出ることがありません。</p>
+    </div>
+
+    <table class="reach">
+      <thead>
+        <tr><th scope="col">コピーしたもの</th><th scope="col">メモリ</th><th scope="col">ディスク</th><th scope="col">AI</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="what" scope="row"><b>受け取らない</b><span>パスワードマネージャー、機密の印が付いたコピー、除外したアプリ</span></th>
+          <td class="off">なし</td><td class="off">なし</td><td class="off">なし</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>5 分で消える</b><span>API キー、JWT、秘密鍵、カード番号、認証コード</span></th>
+          <td class="on start end">5 分だけ</td><td class="off">書かない</td><td class="off">渡せない</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>Mac の中だけ</b><span>メール、電話番号、住所、画像、ランダムな文字列</span></th>
+          <td class="on start">保持</td><td class="on end">保存する</td><td class="off">渡せない</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>頼んだときだけ AI へ</b><span>文章、URL、コード、コマンド、エラー、JSON</span></th>
+          <td class="on start">保持</td><td class="on">保存する</td><td class="on end spark">確認のあと</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="limits">
+      <div>
+        <h3>見つけられないもの</h3>
+        <ul>
+          <li>判定は規則とエントロピーによるものです。形式に当てはまらないパスワードや氏名は検出できず、ふつうの文章として保存され、AI にも渡せます。渡す前の確認画面で内容を確かめてください。</li>
+          <li>コピー元のアプリは、0.4 秒ごとの確認で最前面にあるアプリとして判定します。コピーの直後にアプリを切り替えると、別のアプリと判定されることがあります。</li>
+        </ul>
+      </div>
+      <div>
+        <h3>保存のしかた</h3>
+        <ul>
+          <li>履歴は SQLite に保存し、ファイルの権限は 0600 です。暗号化はしていません。</li>
+          <li>保存先は Time Machine のバックアップから除外します。</li>
+          <li>Web ページ以外のリンクと Terminal での実行は、動かす前に確認します。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="ai">
+  <div class="wrap ai-grid">
+    <div class="ai-copy">
+      <div class="head">
+        <h2>AI には、頼んだときだけ渡します</h2>
+        <p class="lead">API キーは要りません。いつも使っている Claude や ChatGPT のアプリか Web に、指示文を付けて本文を渡します。設定で有効にするまで、この機能は動きません。</p>
+      </div>
+      <ol class="steps">
+        <li>履歴で <kbd>→</kbd> を押して「説明する」を選びます</li>
+        <li>確認画面で、渡す指示と本文を読みます</li>
+        <li>アプリを開いて新しいチャットに貼り付けます。URL で渡すこともできます</li>
+        <li>終わったら、クリップボードを元の内容に戻します</li>
+      </ol>
+      <p>指示文は書き換えられます。「3 行で要約」「敬語に直す」のように、自分の操作を名前を付けて増やすこともできます。</p>
+    </div>
+
+    <figure class="pop confirm" aria-label="AI に渡す前の確認画面の見本">
+      <div class="confirm-in">
+        <div class="confirm-title"><span>説明する</span><span>Claude</span></div>
+        <p class="confirm-desc">Claude を開き、次の指示と本文 62 文字を新しいチャットに貼り付けます。</p>
+        <div class="confirm-box">
+          <b>次のエラーの原因として考えられることと、具体的な解決手順を簡潔に説明してください。</b>
+          <code>TypeError: Cannot read properties of undefined (reading 'map')</code>
+        </div>
+        <div class="confirm-buttons"><span>キャンセル esc</span><span class="go">送る ↩</span></div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="band get" id="get">
+  <div class="wrap get-grid">
+    <div>
+      <h2>Mac に入れる</h2>
+      <p class="lead">zip を展開して、ClingCling.app をアプリケーションフォルダに移動して開きます。カーソルの横に開くには、アクセシビリティの権限が必要です。</p>
+      <div class="cta">
+        <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest">ダウンロード</a>
+        <p>macOS 14 以降。Developer ID で署名し、Apple の公証を受けています。</p>
+      </div>
+    </div>
+    <div>
+      <div class="source">
+        <p>ソースからもビルドできます。Xcode は要りません。</p>
+        <pre tabindex="0"><code>git clone https://github.com/mori-ri/ClingCling.git
+cd ClingCling
+./scripts/bundle.sh
+open build/ClingCling.app</code></pre>
+      </div>
+      <p class="links">
+        <a href="https://github.com/mori-ri/ClingCling">ソースコード</a>
+        <a href="https://github.com/mori-ri/ClingCling/discussions/new?category=general">感想や要望を送る</a>
+        <a href="https://github.com/sponsors/mori-ri">開発を支援する</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="https://github.com/mori-ri/ClingCling#readme">ドキュメント</a></li>
+      <li><a href="https://github.com/mori-ri/ClingCling/discussions/new?category=general">フィードバック</a></li>
+      <li><a href="https://github.com/sponsors/mori-ri">スポンサー</a></li>
+      <li><a href="https://github.com/mori-ri/ClingCling">GitHub</a></li>
+    </ul>
+    <p>ソースコードは MIT License です。アプリアイコンとロゴは MIT License の対象外です。</p>
+    <p>このページは Cookie もアクセス解析も使わず、外部のサービスを読み込みません。</p>
+  </div>
+</footer>
+
+</body>
+</html>

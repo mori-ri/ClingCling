@@ -18,6 +18,7 @@ scripts/release.sh prepare <version>     # リリースの準備。その後 pub
 swift scripts/check-localization.swift . # 英訳の抜けと、使われていない英訳を検出
 open build/ClingCling.app                # 起動
 swift scripts/make-icons.swift Resources/Branding/ClingCling-logo.png Resources/Generated  # アイコンとロゴを再生成
+scripts/subset-site-font.sh              # LP の見出しフォントを、ページで使う文字に絞って作り直す
 ```
 
 `bundle.sh` は `build/ClingCling.app` を消してから作り直す。起動中のアプリはいったん終了させ、ビルド後に起動し直す。
@@ -51,6 +52,13 @@ swift scripts/make-icons.swift Resources/Branding/ClingCling-logo.png Resources/
 **ショートカット**: 値は `ClingClingCore/Shortcut`（検証と表示もここ）。登録は `HotKey`（Carbon）で、切り替えは `AppModel.applyShortcut` を通す。登録できなければ元のショートカットに戻る。記録中は `ShortcutRecorder` が今のショートカットを外し、終わったら戻す。
 
 **AI への受け渡し**: API は呼ばない。`AIHandoff` がアプリへの貼り付けか URL で渡す。プロンプトは transient marker 付きで一時的にクリップボードへ載せ、`changeCount` が変わっていなければ元の内容へ戻す。
+
+## LP
+
+- `docs/` が LP（GitHub Pages、日本語 `index.html`、英語 `en/index.html`）。ビルドはなく、`docs/assets` の CSS と JS を両方のページが読む。
+- 外部のサービスを読み込まない。フッターにそう書いているので、解析ツールや Web フォントの CDN を足さない。
+- `docs/assets/site.js` のデモは `ContentClassifier`・`SecretDetector`・`ActionRanker` の規則を移したもの。規則や Action 名を変えたら、こちらとページの一覧も直す。
+- 見出しに新しい漢字を使ったら `scripts/subset-site-font.sh` を実行する。
 
 ## 規約
 
