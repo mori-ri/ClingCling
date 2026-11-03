@@ -1,5 +1,6 @@
 import AppKit
 import ClingClingCore
+import UniformTypeIdentifiers
 
 /// アプリ全体の状態。Clipboard 監視 → Privacy Gate → 保存 の流れを束ねる。
 @MainActor
@@ -111,13 +112,16 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Item をクリップボードへ書き戻す（画像は画像として）
-    func writeItemToPasteboard(_ item: ClipItem) {
+    /// Item をクリップボードへ書き戻す（画像は画像として、ファイルはファイルとして）。
+    /// 画像やファイルが見つからず書けなかったら false（クリップボードは変えない）。
+    @discardableResult
+    func writeItemToPasteboard(_ item: ClipItem) -> Bool {
+        if item.isFile { return writeFilesToPasteboard(item) }
         guard item.isImage else {
             writeToPasteboard(item.content, concealed: item.sensitivity >= .suspicious, reusing: item)
-            return
+            return true
         }
-        guard let png = store.imageData(for: item) else { return }
+        guard let png = store.imageData(for: item) else { return false }
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setData(png, forType: .png)
@@ -132,6 +136,28 @@ final class AppModel: ObservableObject {
         monitor.ignoreCurrentChange()
         try? store.touch(item.id)
         revision += 1
+        return true
+    }
+
+    /// ファイルの参照をクリップボードに載せる。Finder に貼ればファイルのコピー、メールなどに貼れば添付になる。
+    /// 移動・削除されたファイルは載せない。
+    private func writeFilesToPasteboard(_ item: ClipItem) -> Bool {
+        let urls = existingFileURLs(item)
+        guard !urls.isEmpty else { return false }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects(urls.map { $0 as NSURL })
+        monitor.ignoreCurrentChange()
+        try? store.touch(item.id)
+        revision += 1
+        return true
+    }
+
+    /// ファイル Item のうち、今もその場所にあるファイル
+    func existingFileURLs(_ item: ClipItem) -> [URL] {
+        item.filePaths
+            .filter { FileManager.default.fileExists(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
     }
 
     // MARK: - Images
@@ -141,12 +167,15 @@ final class AppModel: ObservableObject {
     /// 縮小画像（メモリ上にキャッシュ）。`maxPixelSize` は長辺のピクセル数。
     /// 写っている文字に Secret がある画像は、テキストの Secret と同じく肩越しに見られないよう出さない
     /// （行は鍵のアイコン、プレビューはマスクした文字になる）。一時 Item の画像はすべてこれに当たる。
-    func thumbnail(for item: ClipItem, maxPixelSize: Int = 96) -> NSImage? {
-        guard let image = item.image, !item.isFullyMasked else { return nil }
-        let key = "\(maxPixelSize)/\(image.fileName)" as NSString
+    /// `readingFiles` なら、画像のファイル 1 つの Item でも作る。一覧の行では使わない
+    /// （開くたびにファイルを読むと、デスクトップなどのフォルダへのアクセスの確認が出ることがある）。
+    func thumbnail(for item: ClipItem, maxPixelSize: Int = 96, readingFiles: Bool = false) -> NSImage? {
+        guard !item.isFullyMasked else { return nil }
+        let url = item.isImage ? store.imageURL(for: item) : readingFiles ? imageFileURL(item) : nil
+        guard let url else { return nil }
+        let key = "\(maxPixelSize)/\(url.path)" as NSString
         if let cached = thumbnails.object(forKey: key) { return cached }
-        guard let url = store.imageURL(for: item),
-              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                   kCGImageSourceCreateThumbnailFromImageAlways: true,
                   kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
@@ -160,6 +189,37 @@ final class AppModel: ObservableObject {
 
     func imageData(for item: ClipItem) -> Data? {
         store.imageData(for: item)
+    }
+
+    /// 縮小画像を作る画像のファイル。大きすぎるファイルは、開くたびに読むと重いので作らない。
+    private func imageFileURL(_ item: ClipItem) -> URL? {
+        guard item.fileKind == .image, let path = item.filePaths.first, item.filePaths.count == 1,
+              let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int,
+              size <= ClipboardMonitor.maxImageBytes
+        else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    private let fileIcons = NSCache<NSString, NSImage>()
+
+    /// ファイル Item の行に出す Finder のアイコン。複数のファイルでは nil。
+    /// 一覧を開くたびにファイルへ触れると、デスクトップや書類のフォルダへのアクセスの確認が出ることがあるので、
+    /// 拡張子から決まる種類のアイコンを使う。アプリだけは本体のアイコンを出す（多くは /Applications にある）。
+    func fileIcon(for item: ClipItem) -> NSImage? {
+        guard item.isFile, item.filePaths.count == 1, let path = item.filePaths.first else { return nil }
+        let key = path as NSString
+        if let cached = fileIcons.object(forKey: key) { return cached }
+        let icon: NSImage
+        if item.fileKind == .application {
+            icon = NSWorkspace.shared.icon(forFile: path)
+        } else if path.hasSuffix("/") && item.fileKind == .folder {
+            icon = NSWorkspace.shared.icon(for: .folder)
+        } else {
+            let ext = (CopiedFiles.plainPath(path) as NSString).pathExtension
+            icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+        }
+        fileIcons.setObject(icon, forKey: key)
+        return icon
     }
 
     typealias PasteboardSnapshot = [[NSPasteboard.PasteboardType: Data]]

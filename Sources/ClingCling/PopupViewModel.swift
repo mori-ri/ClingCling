@@ -9,7 +9,7 @@ import Combine
 final class PopupViewModel: ObservableObject {
     enum Mode {
         case list
-        /// Run や、Web 以外の URL を開く前の確認
+        /// Run や、Web 以外の URL、アプリやスクリプトのファイルを開く前の確認
         case confirm(item: ClipItem, action: SmartAction, position: Int)
         /// AI に渡す前の確認
         case confirmAI(AIRequest)
@@ -268,11 +268,16 @@ final class PopupViewModel: ObservableObject {
 
     /// 履歴からのワンクリック貼り付け。クリップボードに書き戻して閉じ、直前のアプリへ ⌘V を送る。
     func paste(_ item: ClipItem) {
+        notice = nil
+        // 画像やファイルが見つからなければ、前のクリップボードの内容を貼ってしまわないよう止める
+        guard model.writeItemToPasteboard(item) else {
+            mode = .list
+            notice = ActionExecutor.notFoundMessage(for: item)
+            return
+        }
         // 「Copy を選んだ」として学習する（表示位置は Copy の位置。無ければ末尾扱い）
         let row = rows.first { $0.id == item.id }
         model.recordAction(.copy, item: item, position: row?.actions.firstIndex(of: .copy) ?? ActionRanker.maxVisible)
-        notice = nil
-        model.writeItemToPasteboard(item)
         pasteWrittenContent()
     }
 

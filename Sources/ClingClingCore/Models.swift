@@ -14,6 +14,8 @@ public enum ContentType: String, Codable, CaseIterable, Sendable {
     case verificationCode = "verification_code"
     /// 画像（スクリーンショットなど）。写っている文字（OCR）しか検査できないので常に Local only
     case image
+    /// Finder などでコピーしたファイル。本文はパス（1 行に 1 つ）で、ファイルの中身は読まない。常に Local only
+    case file
     case other
 }
 
@@ -91,7 +93,7 @@ public struct ClipItem: Identifiable, Hashable, Sendable {
     public var id: UUID
     public var createdAt: Date
     public var lastCopiedAt: Date
-    /// 本文。画像 Item では一覧・検索用のラベル（「画像 1280×720」）
+    /// 本文。画像 Item では一覧・検索用のラベル（「画像 1280×720」）、ファイル Item ではパス（`filePaths`）
     public var content: String
     public var contentHash: String
     public var contentType: ContentType

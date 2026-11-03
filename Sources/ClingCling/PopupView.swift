@@ -19,8 +19,8 @@ struct PopupView: View {
             panel
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { layout.panelHeight = $0 }
             if vm.actionsOpen, case .list = vm.mode, let row = vm.selectedRow {
-                ActionMenu(vm: vm, entries: vm.menuEntries(for: row),
-                           preview: vm.model.thumbnail(for: row.item, maxPixelSize: 480))
+                ActionMenu(vm: vm, item: row.item, entries: vm.menuEntries(for: row),
+                           preview: vm.model.thumbnail(for: row.item, maxPixelSize: 480, readingFiles: true))
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { layout.menuHeight = $0 }
                     .padding(.top, menuOffset)
             }
@@ -52,7 +52,8 @@ struct PopupView: View {
                     }
                 }
             case let .confirm(item, action, _):
-                ConfirmView(vm: vm, item: item, title: Presentation.confirmationTitle(for: action), systemImage: action.systemImage,
+                ConfirmView(vm: vm, item: item, title: Presentation.confirmationTitle(for: action, item: item),
+                            systemImage: action.systemImage,
                             action: action, request: nil)
             case .confirmAI(let request):
                 ConfirmView(vm: vm, item: request.item, title: request.title, systemImage: request.systemImage,
@@ -101,6 +102,7 @@ struct PopupView: View {
                             if showsSections && index == 0 && vm.pinnedCount > 0 { sectionLabel("ピン留め") }
                             if showsSections && index == vm.pinnedCount && vm.pinnedCount > 0 { sectionLabel("履歴") }
                             ClipRow(row: row, query: vm.query, thumbnail: vm.model.thumbnail(for: row.item),
+                                    fileIcon: vm.model.fileIcon(for: row.item),
                                     selected: index == vm.selection,
                                     hovered: vm.hoveredID == row.id,
                                     onOpenActions: { vm.toggleActions(at: index) })
@@ -233,6 +235,8 @@ struct ClipRow: View {
     let query: String
     /// 画像 Item の縮小画像
     let thumbnail: NSImage?
+    /// ファイル Item の Finder のアイコン
+    let fileIcon: NSImage?
     let selected: Bool
     let hovered: Bool
     let onOpenActions: () -> Void
@@ -250,6 +254,11 @@ struct ClipRow: View {
                     .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
                     .padding(.horizontal, -3)
+            } else if let fileIcon {
+                Image(nsImage: fileIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
             } else {
                 Image(systemName: Presentation.rowIcon(for: item))
                     .font(.system(size: 12, weight: .medium))
@@ -304,8 +313,10 @@ struct ClipRow: View {
 
 struct ActionMenu: View {
     @ObservedObject var vm: PopupViewModel
+    /// メニューを開いている Item（Action 名を Item に合わせる）
+    let item: ClipItem
     let entries: [PopupViewModel.MenuEntry]
-    /// 画像 Item のプレビュー
+    /// 画像 Item（画像のファイルを含む）のプレビュー
     let preview: NSImage?
 
     var body: some View {
@@ -366,7 +377,7 @@ struct ActionMenu: View {
     private func title(for entry: PopupViewModel.MenuEntry) -> String {
         switch entry {
         case .paste: String(localized: "貼り付け")
-        case .smart(let action, _): Presentation.title(for: action)
+        case .smart(let action, _): Presentation.title(for: action, item: item)
         case .custom(let custom, _): custom.name
         case .save: Presentation.title(for: .saveImage)
         case .pin(let isPinned): isPinned ? String(localized: "ピン留めを外す") : String(localized: "ピン留めする")
@@ -454,17 +465,30 @@ struct ConfirmView: View {
                 }
                 Spacer()
                 PanelButton(title: "キャンセル", key: "esc", action: vm.back)
-                PanelButton(title: request != nil ? "送る" : action == .open ? "開く" : "実行", key: "↩", prominent: true, action: vm.confirm)
+                PanelButton(title: confirmTitle, key: "↩", prominent: true, action: vm.confirm)
             }
         }
         .padding(8)
     }
 
+    private var confirmTitle: LocalizedStringKey {
+        if request != nil { return "送る" }
+        switch action {
+        case .open, .openFile: return "開く"
+        default: return "実行"
+        }
+    }
+
     private var description: String {
         guard request != nil else {
-            return action == .open
-                ? String(localized: "Web ページ以外のリンクです。アプリの起動やファイルの実行につながることがあります。心当たりがある内容か確認してください。")
-                : String(localized: "新しい Terminal ウインドウで次のコマンドを実行します。")
+            switch action {
+            case .open:
+                return String(localized: "Web ページ以外のリンクです。アプリの起動やファイルの実行につながることがあります。心当たりがある内容か確認してください。")
+            case .openFile:
+                return Presentation.openFileWarning(item)
+            default:
+                return String(localized: "新しい Terminal ウインドウで次のコマンドを実行します。")
+            }
         }
         guard let destination = vm.selectedDestination else { return "" }
         switch destination.kind {

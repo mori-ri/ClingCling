@@ -118,7 +118,8 @@ struct ClipPreviewView: View {
 
     init(image: NSImage?, item: ClipItem) {
         var parts = [Presentation.meta(item)]
-        if image != nil { parts.insert(item.content, at: 0) }
+        // 画像の下には本文の代わりに、画像 Item ならラベル（「画像 1280×720」）、ファイルなら名前を出す
+        if image != nil { parts.insert(item.isFile ? item.fileSummary : item.content, at: 0) }
         if item.isFullTextCut(limit: Presentation.fullTextLimit) {
             parts.append(String(localized: "先頭 \(Presentation.fullTextLimit) 文字を表示"))
         }

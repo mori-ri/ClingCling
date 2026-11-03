@@ -46,10 +46,12 @@ public struct ImageCapture: Sendable {
 
 /// Pasteboard から得たキャプチャ候補
 public struct CaptureInput: Sendable {
-    /// 画像のときは空
+    /// 画像・ファイルのときは空
     public var text: String
     /// 画像のときだけ値がある
     public var image: ImageCapture?
+    /// ファイルのときだけ値がある。フォルダのパスは末尾が `/`
+    public var filePaths: [String]?
     /// NSPasteboard の type 識別子（`org.nspasteboard.ConcealedType` などの判定に使う）
     public var pasteboardTypes: Set<String>
     public var source: SourceApp
@@ -58,6 +60,7 @@ public struct CaptureInput: Sendable {
     public init(text: String, pasteboardTypes: Set<String>, source: SourceApp, date: Date = Date()) {
         self.text = text
         self.image = nil
+        self.filePaths = nil
         self.pasteboardTypes = pasteboardTypes
         self.source = source
         self.date = date
@@ -66,6 +69,16 @@ public struct CaptureInput: Sendable {
     public init(image: ImageCapture, pasteboardTypes: Set<String>, source: SourceApp, date: Date = Date()) {
         self.text = ""
         self.image = image
+        self.filePaths = nil
+        self.pasteboardTypes = pasteboardTypes
+        self.source = source
+        self.date = date
+    }
+
+    public init(filePaths: [String], pasteboardTypes: Set<String>, source: SourceApp, date: Date = Date()) {
+        self.text = ""
+        self.image = nil
+        self.filePaths = filePaths
         self.pasteboardTypes = pasteboardTypes
         self.source = source
         self.date = date
@@ -127,6 +140,9 @@ public struct PrivacyGate: Sendable {
     public func evaluate(_ input: CaptureInput, settings: PrivacySettings) -> GateDecision {
         if let image = input.image {
             return evaluateImage(image, input: input, settings: settings)
+        }
+        if let paths = input.filePaths {
+            return evaluateFiles(paths, input: input, settings: settings)
         }
         let text = input.text
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -238,6 +254,33 @@ public struct PrivacyGate: Sendable {
             if !reasons.contains(finding.rule) { reasons.append(finding.rule) }
         }
         return (sensitivity, reasons)
+    }
+
+    /// ファイルはパスだけを残し、中身は読まない。中身を検査できないので外部送信は常に不可（Fail Closed）。
+    /// ファイル本体はコピーしないので、移動・削除されると履歴からは開けなくなる。
+    func evaluateFiles(_ paths: [String], input: CaptureInput, settings: PrivacySettings) -> GateDecision {
+        // 1 行に 1 つのパスで持つので、改行を含むパスは扱えない
+        guard !paths.isEmpty, paths.count <= CopiedFiles.maxCount,
+              paths.allSatisfy({ !$0.isEmpty && !$0.contains(where: \.isNewline) })
+        else { return .drop(reason: "empty") }
+        if let drop = precheck(input, settings: settings) { return drop }
+        let policy = Self.policy(for: input.source, settings: settings)
+        var reasons = ["File: content not inspected"]
+        if policy == .localOnly { reasons.append("App policy: Local only") }
+        let content = paths.joined(separator: "\n")
+        return .capture(ClipItem(
+            createdAt: input.date,
+            content: content,
+            // パスを文字としてコピーした Item と重複排除で混ざらないよう、ハッシュを分ける
+            contentHash: ContentHash.sha256("file\n" + content),
+            contentType: .file,
+            source: input.source,
+            sensitivity: .normal,
+            retention: .normal,
+            externalAllowed: false,
+            expiresAt: nil,
+            reasons: reasons
+        ))
     }
 
     /// Pasteboard metadata（nspasteboard.org の慣習）とコピー元アプリの判定。キャプチャしないなら drop を返す。

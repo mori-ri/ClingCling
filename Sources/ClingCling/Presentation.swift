@@ -1,5 +1,7 @@
+import AppKit
 import ClingClingCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 一覧表示用の文字列整形
 enum Presentation {
@@ -16,7 +18,30 @@ enum Presentation {
         case .credential: "key"
         case .verificationCode: "number"
         case .image: "photo"
+        case .file: "doc"
         case .other: "doc"
+        }
+    }
+
+    static func icon(for kind: FileKind) -> String {
+        switch kind {
+        case .folder: "folder"
+        case .application: "app"
+        case .image: "photo"
+        case .pdf: "doc.richtext"
+        case .text: "doc.text"
+        case .code: "chevron.left.forwardslash.chevron.right"
+        case .document: "doc.text"
+        case .spreadsheet: "tablecells"
+        case .presentation: "rectangle.on.rectangle"
+        case .archive: "archivebox"
+        case .diskImage: "externaldrive"
+        case .installer: "shippingbox"
+        case .script: "terminal"
+        case .audio: "waveform"
+        case .video: "film"
+        case .other: "doc"
+        case .mixed: "doc.on.doc"
         }
     }
 
@@ -74,7 +99,8 @@ enum Presentation {
 
     /// 行のアイコン。Sensitive な Item は種類より「鍵」を優先する。
     static func rowIcon(for item: ClipItem) -> String {
-        item.sensitivity >= .suspicious ? "lock" : icon(for: item.contentType)
+        if let kind = item.fileKind { return icon(for: kind) }
+        return item.sensitivity >= .suspicious ? "lock" : icon(for: item.contentType)
     }
 
     /// 一致箇所をハイライトした本文。全体をマスクした本文は一致位置が無意味なので強調しない。
@@ -90,8 +116,38 @@ enum Presentation {
     }
 
     /// 確認画面に出す Action 名。確認が出る URL はブラウザで開くとは限らない。
-    static func confirmationTitle(for action: SmartAction) -> String {
-        action == .open ? String(localized: "リンクを開く") : title(for: action)
+    static func confirmationTitle(for action: SmartAction, item: ClipItem) -> String {
+        action == .open ? String(localized: "リンクを開く") : title(for: action, item: item)
+    }
+
+    /// Item に合わせた Action 名。ファイルを開く操作は、種類や開くアプリで言い方を変える。
+    static func title(for action: SmartAction, item: ClipItem) -> String {
+        guard action == .openFile, let kind = item.fileKind else { return title(for: action) }
+        let paths = item.filePaths
+        if paths.count > 1 { return String(localized: "まとめて開く") }
+        switch kind {
+        case .folder: return String(localized: "Finder で開く")
+        case .application: return String(localized: "起動する")
+        case .archive: return String(localized: "展開する")
+        case .diskImage: return String(localized: "マウントする")
+        case .installer: return String(localized: "インストーラを開く")
+        default:
+            // 既定のアプリの名前を出す（「プレビューで開く」）。分からなければ「開く」。
+            // ファイルには触れず拡張子で調べる（デスクトップなどのフォルダへのアクセスの確認を出さないため）
+            let ext = (CopiedFiles.plainPath(paths.first ?? "") as NSString).pathExtension
+            guard !ext.isEmpty, let type = UTType(filenameExtension: ext),
+                  let app = NSWorkspace.shared.urlForApplication(toOpen: type)
+            else { return title(for: action) }
+            return String(localized: "\(FileManager.default.displayName(atPath: app.path)) で開く")
+        }
+    }
+
+    /// ファイルを開く前の確認の説明
+    static func openFileWarning(_ item: ClipItem) -> String {
+        if item.filePaths.contains(where: { FileKind.classify(path: $0).launchesCode }) {
+            return String(localized: "アプリの起動やインストール、スクリプトの実行につながるファイルです。心当たりがあるファイルか確認してください。")
+        }
+        return String(localized: "\(item.filePaths.count) 個のファイルをまとめて開きます。")
     }
 
     /// ポップアップに出す Action 名
@@ -112,6 +168,11 @@ enum Presentation {
         case .inspect: String(localized: "JSON の構造を見る")
         case .saveImage: String(localized: "ダウンロードに保存")
         case .pasteText: String(localized: "テキストで貼り付け")
+        case .openFile: String(localized: "開く")
+        case .revealInFinder: String(localized: "Finder で表示")
+        case .copyPath: String(localized: "パスをコピー")
+        case .openInTerminal: String(localized: "Terminal で開く")
+        case .copyContents: String(localized: "中身をテキストでコピー")
         }
     }
 }

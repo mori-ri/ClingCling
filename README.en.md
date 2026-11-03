@@ -40,7 +40,21 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
 - **Hover over a row** to see the full text in a card, along with when and in which app you copied it. Long text scrolls inside the card (up to the first 20,000 characters). Secrets stay masked, as in the list.
 - **Images** (screenshots, images copied from Preview or the web) stay in the history too, with thumbnails and a larger preview on hover. `↩` pastes the image; "Save to Downloads" writes a PNG.
   - When an image is captured, macOS Vision **reads the text in it** (OCR, Japanese and English, entirely on your Mac). The text appears in the row and the preview and is searchable. "Paste as Text" in the action menu pastes the text instead of the image.
-  - A copy that also carries text (such as spreadsheet cells) is treated as text. File copies from Finder are not captured.
+  - A copy that also carries text (such as spreadsheet cells) is treated as text.
+- **Files** (files and folders copied in Finder and elsewhere) stay in the history too. Only the path is kept: the file isn't read or duplicated. Rows show the icon for the kind of file and the name ("a.pdf and 2 more" for several), and hovering over an image file shows a larger preview. `↩` pastes them as files (a copy of the file in Finder, an attachment in Mail and similar apps).
+  - Smart Actions follow the kind of file:
+
+    | Kind | Smart Actions (default order) |
+    |---|---|
+    | Folder | Open in Finder / Open in Terminal / Copy Path |
+    | Text or code (one file) | Copy Contents as Text / Open with the default app ("Open with Preview" and so on) / Show in Finder |
+    | Script (`.command`, `.sh` and so on) | Copy Contents as Text / Show in Finder / Copy Path |
+    | App | Launch / Show in Finder / Copy Path |
+    | Archive, disk image, installer | Extract, Mount or Open Installer / Show in Finder / Copy Path |
+    | Images, PDFs, documents, several files | Open / Show in Finder / Copy Path |
+
+  - ClingCling asks before opening apps, installers and scripts, and before opening more than 10 files at once. Copying contents works for UTF-8 text up to 1 MB.
+  - Files that have been moved or deleted only support Copy Path (ClingCling tells you why).
 - AI Actions (explain, polish, shorten, translate) are turned on in Settings › AI. ClingCling never calls an API; it hands your instruction and the text to an AI.
   - **App** (default: the Claude and ChatGPT apps): brings the app forward, opens a new chat with ⌘N and pastes (optionally sends with ↩), then restores the clipboard. Needs the Accessibility permission.
   - **URL** (default: `https://claude.ai/new?q={prompt}` / `https://chatgpt.com/?q={prompt}`): opens a URL with `{prompt}` (instruction + text), `{instruction}` or `{text}` filled in. URLs over 8,000 characters are not sent. The text is part of the URL, so it also stays in your browser history.
@@ -71,6 +85,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | `ClingClingCore/PrivacyGate` | The first local check: pasteboard markers → source app → secret detection → classification → whether the item may leave the Mac (allowlist, fail closed) → retention |
 | `ClingClingCore/SecretDetector` | Regular expressions for known secrets, credit cards (Luhn), high-entropy strings, personal information |
 | `ClingClingCore/ContentClassifier` | Rule-based classification (text / url / code / command / error / email / address / json / credential / verification_code / other) |
+| `ClingClingCore/FileKind` | The kind of a copied file (from its extension and whether it's a folder only; the content isn't read) |
 | `ClingClingCore/ActionRanker` | Builds candidates from the type and source app, and ranks up to three using local usage statistics |
 | `ClingClingCore/ClipStore` | SQLite (`~/Library/Application Support/ClingCling`, 0600). Image files are `images/<hash>.png` in the same place (0600, removed with their row); text read from images is in the database. Deduplication, retention, action statistics |
 | `ClingCling/*` | Menu bar, clipboard monitoring, reading text in images (`TextRecognizer`, Vision), global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings |
@@ -84,6 +99,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | High-entropy strings (unknown tokens, long hex) | Saved but local only. Only the matching part is masked in the list and the card (URL paths, file paths and CamelCase words don't count as tokens) |
 | Personal information (email addresses, phone numbers), addresses, Local Only apps, unclassifiable content | Saved but local only |
 | Images | The text in them (OCR) goes through secret detection like copied text. If it contains a secret or verification code, the image is kept in memory for 5 minutes and never written to disk. Anything other than text, and misread text, can't be inspected, so images are always local only (markers, password managers and per-app policies apply as for text) |
+| Files | Only the path is saved; the content isn't read (except when you choose Copy Contents as Text). Always local only (markers, password managers and per-app policies apply as for text) |
 | Other text / url / code / command / error / json | AI / Search are offered only on your explicit action (with a confirmation first) |
 
 The history folder (`~/Library/Application Support/ClingCling`) is excluded from Time Machine. Backups made before the exclusion keep what they contain.
@@ -96,7 +112,8 @@ The history folder (`~/Library/Application Support/ClingCling`) is excluded from
 
 ## Out of scope for MVP v0.1 / known limits
 
-- Text and images only (no files). Images up to 30 MB; they count toward the history limit and retention period.
+- Text, images and files. Images up to 30 MB, files up to 200 at a time; they count toward the history limit and retention period.
+- Files are kept as references (paths), so moving or deleting the original means the history can no longer open it.
 - The default ⌘⇧V overrides "Paste and Match Style" in many apps (change it in Settings › General).
 - The history database is not encrypted (file permission 0600 only).
 - Copy Session, Semantic Search and local LLM classification are not implemented.

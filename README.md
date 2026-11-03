@@ -38,7 +38,21 @@ open build/ClingCling.app
 - **行にマウスを載せる**と、横のカードに全文と、いつ・どのアプリでコピーしたかが出る。長い本文はカードの上でスクロールできる（表示は先頭 20,000 文字まで）。Secret は一覧と同じくマスクされたまま
 - **画像**（スクリーンショット、プレビューや Web からの画像コピー）も履歴に残る。行にサムネイル、行にマウスを載せると横に拡大プレビュー、`→` のアクションメニューにも大きめのプレビュー。`↩` で画像として貼り付け、「ダウンロードに保存」で PNG を書き出し
   - 取り込むときに macOS の Vision で**写っている文字を読み取る**（OCR。日本語と英語、処理はすべて Mac の中）。読み取った文字は一覧の行とプレビューに出て、検索でも見つかる。アクションメニューの「テキストで貼り付け」で、画像の代わりに文字を貼り付け
-  - テキストも一緒に載っているコピー（表計算のセルなど）はテキストとして扱う。Finder でのファイルコピーは対象外
+  - テキストも一緒に載っているコピー（表計算のセルなど）はテキストとして扱う
+- **ファイル**（Finder などでのファイル・フォルダのコピー）も履歴に残る。残すのはパスだけで、ファイルの中身は読まず、複製もしない。行には種類のアイコンと名前（複数なら「a.pdf ほか 2 件」）。画像のファイルは、マウスを載せると横に拡大プレビュー。`↩` でファイルとして貼り付け（Finder ならファイルのコピー、メールなどなら添付）
+  - 種類に合わせて Smart Action が変わる:
+
+    | 種類 | Smart Action（既定の順） |
+    |---|---|
+    | フォルダ | Finder で開く / Terminal で開く / パスをコピー |
+    | テキスト・コード（1 つ） | 中身をテキストでコピー / 既定のアプリで開く（「プレビューで開く」など） / Finder で表示 |
+    | スクリプト（`.command`、`.sh` など） | 中身をテキストでコピー / Finder で表示 / パスをコピー |
+    | アプリ | 起動する / Finder で表示 / パスをコピー |
+    | 圧縮ファイル・ディスクイメージ・インストーラ | 展開する・マウントする・インストーラを開く / Finder で表示 / パスをコピー |
+    | 画像・PDF・書類など、複数のファイル | 開く / Finder で表示 / パスをコピー |
+
+  - アプリ・インストーラ・スクリプトを開く前と、11 個以上のファイルをまとめて開く前に確認する。中身のコピーは 1 MB までの UTF-8 のテキスト
+  - 移動・削除したファイルは、パスのコピー以外の操作ができない（理由を表示）
 - AI Action（説明する / 文章を整える / 短くする / 翻訳する）は Settings → AI で有効化。API は直接呼ばず、指示文を付けた本文を AI に渡します。
   - **アプリ**（既定: Claude アプリ / ChatGPT アプリ）: アプリを前面に出し、⌘N で新しいチャットを開いて貼り付け（任意で ↩ 送信）。終わったらクリップボードを元に戻す。アクセシビリティ権限が必要
   - **URL**（既定: `https://claude.ai/new?q={prompt}` / `https://chatgpt.com/?q={prompt}`）: `{prompt}`（指示 + 本文）/ `{instruction}` / `{text}` を埋め込んで開く。8,000 文字を超える URL は送らない。本文が URL に入るので、ブラウザの履歴にも残る
@@ -70,6 +84,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | `ClingClingCore/PrivacyGate` | 最前段のローカル判定。Pasteboard marker → コピー元アプリ → Secret 検出 → 分類 → 外部送信可否（許可リスト方式・Fail Closed）→ Retention |
 | `ClingClingCore/SecretDetector` | 既知 Secret の正規表現、クレジットカード（Luhn）、高エントロピー文字列、個人情報 |
 | `ClingClingCore/ContentClassifier` | ルールベース分類（text / url / code / command / error / email / address / json / credential / verification_code / other） |
+| `ClingClingCore/FileKind` | コピーしたファイルの種類（拡張子とフォルダかどうかだけで判定。中身は読まない） |
 | `ClingClingCore/ActionRanker` | 分類＋コピー元アプリで候補を作り、ローカル利用統計で並べ替えて最大 3 つ |
 | `ClingClingCore/ClipStore` | SQLite（`~/Library/Application Support/ClingCling`、0600）。画像本体は同じ場所の `images/<hash>.png`（0600、行が消えるとファイルも削除）、読み取った文字は DB。重複排除、保存期間、Action 統計、First Action Selection Rate |
 | `ClingCling/*` | メニューバー、Clipboard 監視、画像の文字の読み取り（`TextRecognizer`、Vision）、⌘⇧V（Carbon HotKey）、ポップアップ、Action 実行、AI への受け渡し（`AIHandoff`）、設定 |
@@ -83,6 +98,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 高エントロピー文字列（未知 Token・長い Hex） | 保存するが Local only。一覧とカードでは該当部分だけをマスク（URL のパスやファイルパス、CamelCase の語は Token とみなさない） |
 | 個人情報（メール・電話番号）、住所、Local Only アプリ、分類不能 | 保存するが Local only |
 | 画像 | 写っている文字（OCR）をテキストと同じく Secret 検出にかける。Secret や認証コードが写っていれば、画像もディスクに書かずメモリで 5 分保持。文字以外の中身や読み違いまでは検査できないので、常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
+| ファイル | パスだけを保存し、中身は読まない（「中身をテキストでコピー」を選んだときだけ読む）。常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | それ以外の text / url / code / command / error / json | 明示操作時のみ AI / Search を提示（渡す前に確認） |
 
 履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。
@@ -95,7 +111,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 
 ## MVP v0.1 の範囲外 / 既知の制限
 
-- テキストと画像が対象（ファイルは未対応）。画像は 30 MB まで、件数は履歴の上限・保存期間に含まれる
+- テキスト・画像・ファイルが対象。画像は 30 MB まで、ファイルは一度に 200 個まで。件数は履歴の上限・保存期間に含まれる
+- ファイルは参照（パス）だけを残すので、元のファイルを移動・削除すると履歴からは開けない
 - 既定の ⌘⇧V は、多くのアプリの「スタイルを合わせてペースト」を上書きします（設定 › 一般 で変更できます）
 - 履歴 DB は暗号化していない（ファイル権限 0600 のみ）
 - Copy Session、Semantic Search、ローカル LLM 分類は未実装
