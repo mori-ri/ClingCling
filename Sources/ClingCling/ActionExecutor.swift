@@ -296,7 +296,7 @@ enum ActionExecutor {
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {
-            return .failure(String(localized: "Terminal で実行できませんでした: \(error[NSAppleScript.errorMessage] ?? "")"))
+            return .failure(String(localized: "Terminal で実行できませんでした: \((error[NSAppleScript.errorMessage] as? String) ?? "")"))
         }
         return .close(paste: false)
     }
