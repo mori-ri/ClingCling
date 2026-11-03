@@ -178,6 +178,7 @@
 "次の指示と本文 %lld 文字を URL に入れて %@ を開きます。" = "Opens %2$@ with the following instruction and %1$lld characters of text in the URL.";
 "%@ に送れませんでした" = "Couldn't Send to %@";
 "%lld分で消去" = "Clears in %lld min";
+"先頭 %lld 文字を表示" = "Showing the first %lld characters";
 "コピーしました（⌘V で貼り付けできます）。自動で貼り付けるには、システム設定 → プライバシーとセキュリティ → アクセシビリティ で ClingCling を許可してください。" = "Copied (paste with ⌘V). To paste automatically, allow ClingCling in System Settings → Privacy & Security → Accessibility.";
 "コピーしました（⌘V で貼り付けできます）。パスワードの入力中など、入力が保護されている間は自動で貼り付けできません。" = "Copied (paste with ⌘V). ClingCling can't paste automatically while input is protected, such as in a password field.";
 "この Item は Local only です。" = "This item is Local only.";

@@ -59,8 +59,8 @@ final class PopupController: NSObject, NSWindowDelegate {
     private let hosting: NSHostingController<PopupView>
     private let vm: PopupViewModel
     private var keyMonitor: Any?
-    /// 画像の行にマウスを載せたときの拡大プレビュー
-    private let imagePreviewPanel = ImagePreviewPanel()
+    /// 行にマウスを載せたときに横へ出すプレビュー
+    private let previewPanel = ClipPreviewPanel()
     private var cancellables: Set<AnyCancellable> = []
     private var caretRetry: Task<Void, Never>?
 
@@ -79,18 +79,20 @@ final class PopupController: NSObject, NSWindowDelegate {
             self?.hide()
             if paste { ActionExecutor.pasteIntoFrontmostApp() }
         }
-        vm.$imagePreview.removeDuplicates().sink { [weak self] preview in
-            self?.updateImagePreview(preview)
+        vm.$preview.removeDuplicates().sink { [weak self] preview in
+            self?.updatePreview(preview)
         }.store(in: &cancellables)
+        previewPanel.onHover = { [weak vm] in vm?.previewHovered = $0 }
     }
 
-    private func updateImagePreview(_ preview: PopupViewModel.ImagePreview?) {
-        guard let preview, panel.isVisible,
-              let image = vm.model.thumbnail(for: preview.item, maxPixelSize: 720) else {
-            imagePreviewPanel.hide()
+    private func updatePreview(_ preview: PopupViewModel.Preview?) {
+        guard let preview, panel.isVisible else {
+            previewPanel.hide()
             return
         }
-        imagePreviewPanel.show(image: image, caption: preview.item.content, rowFrame: preview.rowFrame, beside: panel)
+        let item = preview.item
+        previewPanel.show(item, image: vm.model.thumbnail(for: item, maxPixelSize: 720),
+                          rowFrame: preview.rowFrame, beside: panel)
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -143,7 +145,7 @@ final class PopupController: NSObject, NSWindowDelegate {
         caretRetry = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
-        imagePreviewPanel.hide()
+        previewPanel.hide()
         panel.orderOut(nil)
     }
 
