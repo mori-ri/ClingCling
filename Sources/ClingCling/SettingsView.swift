@@ -296,9 +296,7 @@ private struct GeneralPage: View {
                     }
                 }
                 ToggleRow("新しいバージョンを確認する", isOn: $settings.checksForUpdates)
-                    .onChange(of: settings.checksForUpdates) { _, _ in
-                        Task { await model.updates.check() }
-                    }
+                    .onChange(of: settings.checksForUpdates) { _, _ in model.updates.restart() }
                 NoteRow("起動時と 1 日に 1 回、GitHub に最新のバージョンとお知らせを問い合わせます。コピーした内容は送りません。ダウンロードはボタンを押したときだけで、自動でインストールはしません。")
                 ShortcutRow(settings: settings, model: model)
                 ToggleRow("Copy 後に直前のアプリへ貼り付ける", isOn: $settings.pasteAfterCopy)

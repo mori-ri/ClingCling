@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: String(localized: "確認しない"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
             self.model.settings.checksForUpdates = true
-            Task { await self.model.updates.check() }
+            self.model.updates.restart()
         }
     }
 

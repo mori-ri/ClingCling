@@ -79,6 +79,10 @@ public final class UpdateChecker: ObservableObject {
     /// 正式なリリースを新しい順に。お知らせのページ用
     @Published public private(set) var notes: [ReleaseNote] = []
     @Published public private(set) var isLoading = false
+    /// 問い合わせ中の数。起動時の確認とお知らせのページの読み込みが重なっても、全部終わるまで読み込み中にする
+    private var requestsInFlight = 0 {
+        didSet { isLoading = requestsInFlight > 0 }
+    }
     /// 直前の問い合わせに失敗したか。お知らせのページで再試行を出すため
     @Published public private(set) var loadFailed = false
     /// このビルドのバージョン。`swift run` では nil
@@ -113,6 +117,13 @@ public final class UpdateChecker: ObservableObject {
         }
     }
 
+    /// 確認をやり直し、そこから 1 日 1 回（失敗したら 1 時間後）の周期を始め直す。設定をオンにしたときに呼ぶ。
+    public func restart() {
+        task?.cancel()
+        task = nil
+        start()
+    }
+
     /// 確認できなかったら false を返す。設定がオフなら問い合わせず、出していた知らせも消す。
     @discardableResult
     public func check() async -> Bool {
@@ -141,8 +152,8 @@ public final class UpdateChecker: ObservableObject {
     }
 
     private func fetch() async -> [PublishedRelease]? {
-        isLoading = true
-        defer { isLoading = false }
+        requestsInFlight += 1
+        defer { requestsInFlight -= 1 }
         do {
             let releases = try await fetchReleases()
             loadFailed = false

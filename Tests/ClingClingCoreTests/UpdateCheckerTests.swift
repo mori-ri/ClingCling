@@ -126,6 +126,30 @@ import Testing
         #expect(sut.availableVersion == nil)
     }
 
+    @Test func isLoadingUntilEveryRequestHasAnswered() async {
+        final class Gate: @unchecked Sendable {
+            var continuations: [CheckedContinuation<Void, Never>] = []
+        }
+        let gate = Gate()
+        let sut = UpdateChecker(
+            currentVersion: "0.5.1", isEnabled: { true },
+            fetchReleases: { @MainActor in
+                await withCheckedContinuation { gate.continuations.append($0) }
+                return Self.releases("v0.6.0")
+            })
+        let first = Task { await sut.check() }
+        let second = Task { await sut.loadNotes() }
+        while gate.continuations.count < 2 { await Task.yield() }
+        // どちらが先に終わっても、もう一方が残っている間は読み込み中のまま
+        gate.continuations.removeFirst().resume()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(sut.isLoading)
+        gate.continuations.removeFirst().resume()
+        _ = await first.value
+        await second.value
+        #expect(!sut.isLoading)
+    }
+
     @Test func aBuildWithoutAVersionNeverAsks() async {
         let sut = UpdateChecker(currentVersion: nil, isEnabled: { true }, fetchReleases: { throw Offline() })
         #expect(await sut.check())

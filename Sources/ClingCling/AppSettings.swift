@@ -57,14 +57,10 @@ final class AppSettings: ObservableObject {
         didSet {
             defaults.set(checksForUpdates, forKey: "checksForUpdates")
             // 設定で選んだ人には聞かない
-            askedAboutUpdateChecks = true
+            updateCheckPrompt.markAsked()
         }
     }
-    /// 新しいバージョンを確認するか、もう聞いたか
-    private var askedAboutUpdateChecks: Bool {
-        get { defaults.bool(forKey: "askedAboutUpdateChecks") }
-        set { defaults.set(newValue, forKey: "askedAboutUpdateChecks") }
-    }
+    private var updateCheckPrompt: UpdateCheckPrompt { UpdateCheckPrompt(defaults: defaults) }
     /// お知らせのページで最後に見たリリース。一度も開いていなければ nil
     @Published var lastSeenReleaseNotes: String? {
         didSet { defaults.set(lastSeenReleaseNotes, forKey: "lastSeenReleaseNotes") }
@@ -143,15 +139,9 @@ final class AppSettings: ObservableObject {
             .flatMap { try? JSONDecoder().decode([AppPolicyEntry].self, from: $0) } ?? []
     }
 
-    /// 起動を数え、新しいバージョンを確認するか聞くときなら true を返す（聞いたことにする）。
-    /// 最初の起動はアクセシビリティの許可などで忙しいので、2 回目の起動で聞く。
+    /// 新しいバージョンを確認するか、今回の起動で聞くか（`UpdateCheckPrompt.registerLaunch`）
     func shouldAskAboutUpdateChecks() -> Bool {
-        guard !askedAboutUpdateChecks else { return false }
-        let launches = defaults.integer(forKey: "launchCount") + 1
-        defaults.set(launches, forKey: "launchCount")
-        guard launches >= 2 else { return false }
-        askedAboutUpdateChecks = true
-        return true
+        updateCheckPrompt.registerLaunch()
     }
 
     var defaultDestination: AIDestination? {
