@@ -16,7 +16,7 @@ ClingCling is built Japanese-first. The UI is available in Japanese and English 
 
 ## Install
 
-Versions on [Releases](https://github.com/mori-ri/ClingCling/releases/latest) are signed with a Developer ID and notarized by Apple. Unzip the download, move `ClingCling.app` to `/Applications`, and open it.
+Versions on [Releases](https://github.com/mori-ri/ClingCling/releases/latest) are signed with a Developer ID and notarized by Apple. Open the dmg, drag `ClingCling.app` to the `Applications` folder, and open it.
 
 To build from source:
 

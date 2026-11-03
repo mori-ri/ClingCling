@@ -177,9 +177,9 @@ upload() {
   require_clean_tree
   [[ "$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)" == "$(git rev-parse HEAD)" ]] \
     || die "HEAD がタグ $tag ではありません。"
-  # && でつなぐ。publish は `||` の中で呼ぶので set -e が効かず、ビルドに失敗しても古い zip を添付してしまう。
-  # NOTARIZE を固定するのも同じ理由で、環境に 0 があると下で添付する名前の zip が作られない。
-  NOTARIZE=1 scripts/package.sh && gh release upload "$tag" "build/ClingCling-$version-$(uname -m).zip" --clobber
+  # && でつなぐ。publish は `||` の中で呼ぶので set -e が効かず、ビルドに失敗しても古い dmg を添付してしまう。
+  # NOTARIZE を固定するのも同じ理由で、環境に 0 があると下で添付する名前の dmg が作られない。
+  NOTARIZE=1 scripts/package.sh && gh release upload "$tag" "build/ClingCling-$version-$(uname -m).dmg" --clobber
 }
 
 case "${1:-}" in

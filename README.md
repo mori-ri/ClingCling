@@ -14,7 +14,7 @@
 
 ## インストール
 
-[Releases](https://github.com/mori-ri/ClingCling/releases/latest) で公開している版は、Developer ID で署名し、Apple の公証を受けています。zip を展開し、`ClingCling.app` を `/Applications` に移動して開きます。
+[Releases](https://github.com/mori-ri/ClingCling/releases/latest) で公開している版は、Developer ID で署名し、Apple の公証を受けています。dmg を開き、`ClingCling.app` を `Applications` フォルダにドラッグしてから開きます。
 
 ソースからビルドする場合:
 
