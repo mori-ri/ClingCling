@@ -5,7 +5,7 @@ English | [日本語](README.md)
 # ClingCling
 
 An intent-aware clipboard for macOS: it understands what you copied and suggests what to do next.
-**Privacy First / Local First** — every check runs on your Mac, and ClingCling itself makes no network connections. Only content that passes the local checks can be handed to an AI (the Claude or ChatGPT app or website), and only when you explicitly ask. The checks have limits (see [Privacy behavior](#privacy-behavior)). No API key is needed.
+**Privacy First / Local First** — every check runs on your Mac, and ClingCling itself makes no network connections without your permission (the only one is checking for new versions, if you allow it). Only content that passes the local checks can be handed to an AI (the Claude or ChatGPT app or website), and only when you explicitly ask. The checks have limits (see [Privacy behavior](#privacy-behavior)). No API key is needed.
 
 ClingCling is built Japanese-first. The UI is available in Japanese and English and follows your macOS language by default.
 
@@ -61,6 +61,7 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
   - Add or edit destinations and instructions in Settings › AI. On the confirmation screen, `⇥` switches the destination.
   - **Custom Actions**: register a name and an instruction (and optionally a destination) in Settings › AI, and they appear at the end of the action menu.
 - Choose the display language in Settings › General (applies after a restart).
+- **New version notices**: off by default. On the second launch, ClingCling asks once whether to check for new versions automatically. If you allow it, ClingCling asks GitHub for the release list at launch and once a day, and the menu bar and the Settings sidebar tell you when a new version is out (download it with the button; nothing is installed automatically). See what's new in each version in Settings › What's New. Change it any time in Settings › General.
 - Send feedback to GitHub Discussions from the Settings sidebar or the menu bar.
 
 The icons are generated from the logo:
@@ -88,7 +89,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | `ClingClingCore/FileKind` | The kind of a copied file (from its extension and whether it's a folder only; the content isn't read) |
 | `ClingClingCore/ActionRanker` | Builds candidates from the type and source app, and ranks up to three using local usage statistics |
 | `ClingClingCore/ClipStore` | SQLite (`~/Library/Application Support/ClingCling`, 0600). Image files are `images/<hash>.png` in the same place (0600, removed with their row); text read from images is in the database. Deduplication, retention, action statistics |
-| `ClingCling/*` | Menu bar, clipboard monitoring, reading text in images (`TextRecognizer`, Vision), global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings |
+| `ClingClingCore/UpdateChecker`, `ReleaseNotes` | Checking for new versions (GitHub's release list) and laying out release notes for the What's New page |
+| `ClingCling/*` | Menu bar, clipboard monitoring, reading text in images (`TextRecognizer`, Vision), global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings, What's New |
 
 ## Privacy behavior
 
@@ -101,6 +103,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | Images | The text in them (OCR) goes through secret detection like copied text. If it contains a secret or verification code, the image is kept in memory for 5 minutes and never written to disk. Anything other than text, and misread text, can't be inspected, so images are always local only (markers, password managers and per-app policies apply as for text) |
 | Files | Only the path is saved; the content isn't read (except when you choose Copy Contents as Text). Always local only (markers, password managers and per-app policies apply as for text) |
 | Other text / url / code / command / error / json | AI / Search are offered only on your explicit action (with a confirmation first) |
+
+The only connection ClingCling makes on its own is checking for new versions (at launch and once a day it asks `api.github.com` for the release list), and it is off by default. ClingCling asks once, on the second launch, and checks only if you allow it (change it any time with Check for New Versions in Settings › General). While it's off, ClingCling asks GitHub only when you click Load on the What's New page. The request carries nothing you copied and none of your settings.
 
 The history folder (`~/Library/Application Support/ClingCling`) is excluded from Time Machine. Backups made before the exclusion keep what they contain.
 

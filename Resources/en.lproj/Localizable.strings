@@ -8,6 +8,8 @@
 "AI に渡す Action と送り先" = "Actions that use AI, and where they go";
 "保存しないものと、Mac の外に出すもの" = "What is never saved, and what leaves your Mac";
 "アプリごとの取り込みルール" = "Capture rules for each app";
+"お知らせ" = "What's New";
+"新しいバージョンと新機能" = "New versions and features";
 
 /* Settings: sidebar */
 "スポンサーになる" = "Become a Sponsor";
@@ -15,6 +17,8 @@
 "GitHub リポジトリ" = "GitHub Repository";
 "ライセンス" = "License";
 "バージョン %@" = "Version %@";
+"バージョン %@ をダウンロード" = "Download Version %@";
+"新しいお知らせ" = "New release notes";
 
 /* Settings: General */
 "ログイン時に起動" = "Launch at Login";
@@ -22,6 +26,8 @@
 "システム既定" = "System Default";
 "再起動すると表示言語が切り替わります。" = "The language changes after a restart.";
 "今すぐ再起動" = "Restart Now";
+"新しいバージョンを確認する" = "Check for New Versions";
+"起動時と 1 日に 1 回、GitHub に最新のバージョンとお知らせを問い合わせます。コピーした内容は送りません。ダウンロードはボタンを押したときだけで、自動でインストールはしません。" = "Asks GitHub for the latest version and release notes at launch and once a day. Nothing you copy is sent. Downloads happen only when you click the button, and nothing is installed automatically.";
 "ショートカット" = "Shortcut";
 "記録…" = "Record…";
 "キーを押してください（esc で取り消し）" = "Press keys (esc to cancel)";
@@ -52,6 +58,22 @@
 "%lld%%（%lld 回中）" = "%1$lld%% (of %2$lld)";
 "学習データ" = "Learning Data";
 "リセット" = "Reset";
+
+/* Settings: What's New */
+"新しいバージョン %@ があります" = "Version %@ is available";
+"ダウンロード" = "Download";
+"リリースのページから zip をダウンロードして展開し、ClingCling を終了してから「アプリケーション」フォルダの ClingCling.app を置き換えます。設定と履歴は引き継がれます。" = "Download the zip from the release page and unzip it, then quit ClingCling and replace ClingCling.app in your Applications folder. Your settings and history are kept.";
+"GitHub のリリースノートを表示しています。" = "Release notes are from GitHub.";
+"すべてのリリースを GitHub で見る" = "See All Releases on GitHub";
+"読み込み中…" = "Loading…";
+"お知らせを読み込めませんでした。インターネットへの接続を確認してください。" = "Couldn't load the release notes. Check your internet connection.";
+"再試行" = "Try Again";
+"新しいバージョンの確認がオフのため、お知らせを読み込んでいません。" = "Release notes aren't loaded because checking for new versions is off.";
+"読み込む" = "Load";
+"お知らせはまだありません。" = "No release notes yet.";
+"使用中" = "Installed";
+"新しいバージョン" = "New";
+"このバージョンの説明はありません。" = "No notes for this version.";
 
 /* Settings: Privacy */
 "「保存しない」Item はディスクに書かず、メモリ上で 5 分間だけ保持します。" = "Items that aren't saved never reach the disk; they stay in memory for 5 minutes.";
@@ -213,6 +235,13 @@
 "画像 %lld×%lld" = "Image %lld×%lld";
 
 /* Menu bar */
+"新しいバージョンを自動で確認しますか？" = "Check for New Versions Automatically?";
+"起動時と 1 日に 1 回、GitHub にリリースの一覧を問い合わせ、新しいバージョンが出たらメニューバーでお知らせします。コピーした内容や設定は送りません。あとから 設定 › 一般 で変更できます。" = "At launch and once a day, ClingCling asks GitHub for the list of releases and lets you know in the menu bar when a new version is out. Nothing you copy and none of your settings are sent. You can change this later in Settings › General.";
+"確認する" = "Check Automatically";
+"確認しない" = "Don't Check";
+"新しいバージョン %@ をダウンロード" = "Download Version %@";
+"新機能を見る…" = "See What's New…";
+"お知らせ…" = "What's New…";
 "クリップボードを開く" = "Open Clipboard";
 "キャプチャを一時停止" = "Pause Capture";
 "キャプチャを再開" = "Resume Capture";

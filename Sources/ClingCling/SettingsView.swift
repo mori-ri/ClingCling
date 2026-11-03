@@ -8,6 +8,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
     case ai
     case privacy
     case applications
+    case news
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
         case .ai: "AI"
         case .privacy: "プライバシー"
         case .applications: "アプリ別"
+        case .news: "お知らせ"
         }
     }
 
@@ -26,6 +28,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
         case .ai: "AI に渡す Action と送り先"
         case .privacy: "保存しないものと、Mac の外に出すもの"
         case .applications: "アプリごとの取り込みルール"
+        case .news: "新しいバージョンと新機能"
         }
     }
 
@@ -35,12 +38,14 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
         case .ai: "sparkles"
         case .privacy: "lock.shield"
         case .applications: "app.badge"
+        case .news: "megaphone"
         }
     }
 }
 
 /// 設定画面のローカル状態。
 /// Command Line Tools には SwiftUI の `@State` マクロ用プラグインが含まれないため、ObservableObject で持つ。
+/// メニューから特定のページ（お知らせなど）を開けるよう、ウインドウの外（`AppDelegate`）が持つ。
 @MainActor
 final class SettingsFormState: ObservableObject {
     @Published var page = SettingsPageID.general
@@ -71,13 +76,12 @@ struct SettingsView: View {
 
     @ObservedObject var settings: AppSettings
     let model: AppModel
-
-    @StateObject private var form = SettingsFormState()
+    @ObservedObject var form: SettingsFormState
 
     var body: some View {
         HStack(spacing: 0) {
             // 信号機ボタンはこのパネルの上端の内側に置く
-            Sidebar(form: form)
+            Sidebar(form: form, settings: settings, updates: model.updates)
                 .frame(width: 212)
                 .glassPanel(cornerRadius: 18)
                 .padding(8)
@@ -102,6 +106,7 @@ struct SettingsView: View {
         case .ai: AIPage(settings: settings)
         case .privacy: PrivacyPage(settings: settings)
         case .applications: ApplicationsPage(settings: settings, form: form)
+        case .news: NewsPage(settings: settings, updates: model.updates)
         }
     }
 }
@@ -110,6 +115,8 @@ struct SettingsView: View {
 
 private struct Sidebar: View {
     @ObservedObject var form: SettingsFormState
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var updates: UpdateChecker
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -126,7 +133,10 @@ private struct Sidebar: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(SettingsPageID.allCases) { page in
-                    SidebarItem(page: page, isSelected: form.page == page) { form.page = page }
+                    SidebarItem(page: page, isSelected: form.page == page,
+                                badge: page == .news && updates.hasUnreadNotes(lastSeen: settings.lastSeenReleaseNotes)) {
+                        form.page = page
+                    }
                 }
             }
             .padding(.horizontal, 10)
@@ -134,6 +144,10 @@ private struct Sidebar: View {
             Spacer(minLength: 16)
 
             VStack(alignment: .leading, spacing: 2) {
+                if let version = updates.availableVersion {
+                    SidebarLink(title: "バージョン \(version) をダウンロード", symbol: "arrow.down.circle",
+                                url: ProjectLinks.latestRelease)
+                }
                 SidebarLink(title: "スポンサーになる", symbol: "heart", url: ProjectLinks.sponsors)
                 SidebarLink(title: "フィードバック・要望", symbol: "bubble.left", url: ProjectLinks.newFeedback)
                 SidebarLink(title: "GitHub リポジトリ", symbol: "chevron.left.forwardslash.chevron.right",
@@ -160,6 +174,8 @@ private struct Sidebar: View {
 private struct SidebarItem: View {
     let page: SettingsPageID
     let isSelected: Bool
+    /// ページに新しいものがある印（未読のお知らせなど）
+    var badge = false
     let action: () -> Void
     @StateObject private var hover = HoverState()
 
@@ -174,6 +190,12 @@ private struct SidebarItem: View {
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 0)
+                if badge {
+                    Circle()
+                        .fill(.tint)
+                        .frame(width: 7, height: 7)
+                        .accessibilityLabel(Text("新しいお知らせ"))
+                }
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -273,6 +295,9 @@ private struct GeneralPage: View {
                         Button("今すぐ再起動") { AppRelauncher.relaunch() }
                     }
                 }
+                ToggleRow("新しいバージョンを確認する", isOn: $settings.checksForUpdates)
+                    .onChange(of: settings.checksForUpdates) { _, _ in model.updates.restart() }
+                NoteRow("起動時と 1 日に 1 回、GitHub に最新のバージョンとお知らせを問い合わせます。コピーした内容は送りません。ダウンロードはボタンを押したときだけで、自動でインストールはしません。")
                 ShortcutRow(settings: settings, model: model)
                 ToggleRow("Copy 後に直前のアプリへ貼り付ける", isOn: $settings.pasteAfterCopy)
                     .onChange(of: settings.pasteAfterCopy) { _, on in

@@ -29,6 +29,8 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 - **テストの不安定な失敗。** テストファイルを変更した後の最初のコンパイルが "plugin for module 'TestingMacros' not found" で失敗することがある。`swift test` の末尾には `error: fatalError` とだけ出る。ビルドし直せば通るので、`scripts/test.sh` が再試行する。
 - **署名。** `bundle.sh` は `CODESIGN_IDENTITY`、Developer ID（Hardened Runtime 付き）、`ClingCling Self-Signed`、ad-hoc の順に使う。ad-hoc 署名だとビルドのたびにアクセシビリティ権限が外れる。バンドル ID は `io.github.mori-ri.clingcling`。バージョンと `Info.plist` は `Resources/Info.plist`。
 - **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて dmg を作る（アプリと dmg をそれぞれ公証する）。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
+- **リリースノート。** 公開したリリースの本文は、アプリの「お知らせ」のページにそのまま出る。ユーザー向けの日本語で書き、インストールの手順は「インストール」の見出しの節に入れる（アプリでは省く）。
+- **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて zip を作る。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
 - **リソースは SwiftPM のリソースではない。** `bundle.sh` が `Contents/Resources` にコピーし、コードは `NSImage(named:)` で読む。`swift run` では無いので、コードは SF Symbols にフォールバックする。
 
 ## 画面の確認
@@ -50,6 +52,8 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 **ポップアップの位置**: `CaretLocator` が AX でキャレットを取る。取れないときはマウスの位置に開き、`AXManualAccessibility` が通るアプリ（Electron など）では 300 ms 後に 1 度だけ取り直して移動する。
 
 **ショートカット**: 値は `ClingClingCore/Shortcut`（検証と表示もここ）。登録は `HotKey`（Carbon）で、切り替えは `AppModel.applyShortcut` を通す。登録できなければ元のショートカットに戻る。記録中は `ShortcutRecorder` が今のショートカットを外し、終わったら戻す。
+
+**更新の確認とお知らせ**（`ClingClingCore/UpdateChecker`、`ClingClingCore/ReleaseNotes`、`NewsPage`）: ClingCling が自分から通信するのはここだけ。許可なく通信しないよう既定はオフで、2 回目の起動時に一度だけ聞く（`ClingClingCore/UpdateCheckPrompt`、`AppDelegate.askAboutUpdateChecksIfNeeded`）。オンなら起動時と 1 日 1 回、GitHub のリリース一覧（`ProjectLinks.releasesAPI`）を問い合わせ、新しい版があればメニューと設定のサイドバーに出す（失敗したら 1 時間後に再試行）。オンにしたら `UpdateChecker.restart` で周期を始め直す。下書き、プレリリース、タグがバージョンの形でないものは除く。ダウンロードはブラウザで最新リリースのページを開くだけで、インストールはしない。設定の「お知らせ」のページ（`SettingsPageID.news`）に最新 5 件のリリースノートを出す。本文は `ReleaseNotes` が見出し・段落・箇条書きに分け、インストールの節、コードブロック、Full Changelog の行は捨てる。押せるリンクは https だけ。最後に見た版（`AppSettings.lastSeenReleaseNotes`）より新しいノートがあれば、サイドバーに印を出す。設定 › 一般 で切り替える（`checksForUpdates`）。オフの間は、お知らせのページでボタンを押したときだけ問い合わせる。問い合わせに履歴や設定を含めない。
 
 **AI への受け渡し**: API は呼ばない。`AIHandoff` がアプリへの貼り付けか URL で渡す。プロンプトは transient marker 付きで一時的にクリップボードへ載せ、`changeCount` が変わっていなければ元の内容へ戻す。
 
