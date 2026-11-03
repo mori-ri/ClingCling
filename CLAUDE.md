@@ -30,7 +30,6 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 - **署名。** `bundle.sh` は `CODESIGN_IDENTITY`、Developer ID（Hardened Runtime 付き）、`ClingCling Self-Signed`、ad-hoc の順に使う。ad-hoc 署名だとビルドのたびにアクセシビリティ権限が外れる。バンドル ID は `io.github.mori-ri.clingcling`。バージョンと `Info.plist` は `Resources/Info.plist`。
 - **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて dmg を作る（アプリと dmg をそれぞれ公証する）。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
 - **リリースノート。** 公開したリリースの本文は、アプリの「お知らせ」のページにそのまま出る。ユーザー向けの日本語で書き、インストールの手順は「インストール」の見出しの節に入れる（アプリでは省く）。
-- **配布。** `scripts/package.sh` が Developer ID の署名と公証を確かめて zip を作る。公証には notarytool のプロファイル `clingcling-notary` が要る。Hardened Runtime の下で Run の Apple Event を送るため、`Resources/ClingCling.entitlements` の entitlement を外さない。
 - **リソースは SwiftPM のリソースではない。** `bundle.sh` が `Contents/Resources` にコピーし、コードは `NSImage(named:)` で読む。`swift run` では無いので、コードは SF Symbols にフォールバックする。
 
 ## 画面の確認

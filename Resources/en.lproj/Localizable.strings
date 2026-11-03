@@ -62,7 +62,7 @@
 /* Settings: What's New */
 "新しいバージョン %@ があります" = "Version %@ is available";
 "ダウンロード" = "Download";
-"リリースのページから zip をダウンロードして展開し、ClingCling を終了してから「アプリケーション」フォルダの ClingCling.app を置き換えます。設定と履歴は引き継がれます。" = "Download the zip from the release page and unzip it, then quit ClingCling and replace ClingCling.app in your Applications folder. Your settings and history are kept.";
+"リリースのページから dmg をダウンロードして開き、ClingCling を終了してから、ClingCling.app を「アプリケーション」フォルダにドラッグして置き換え、もう一度開きます。設定と履歴は引き継がれます。" = "Download the dmg from the release page and open it, then quit ClingCling and drag ClingCling.app to your Applications folder to replace it, and open it again. Your settings and history are kept.";
 "GitHub のリリースノートを表示しています。" = "Release notes are from GitHub.";
 "すべてのリリースを GitHub で見る" = "See All Releases on GitHub";
 "読み込み中…" = "Loading…";

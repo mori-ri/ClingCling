@@ -7,7 +7,7 @@ enum ProjectLinks {
     static let newFeedback = URL(string: "https://github.com/mori-ri/ClingCling/discussions/new?category=general")!
     static let sponsors = URL(string: "https://github.com/sponsors/mori-ri")!
     static let releases = URL(string: "https://github.com/mori-ri/ClingCling/releases")!
-    /// 最新のリリースのページ。zip は CPU ごとに名前が違うので、ファイルではなくページを開く。
+    /// 最新のリリースのページ。dmg は CPU ごとに名前が違うので、ファイルではなくページを開く。
     /// ブラウザでダウンロードするので隔離属性が付き、Gatekeeper が確かめる。
     static let latestRelease = URL(string: "https://github.com/mori-ri/ClingCling/releases/latest")!
     /// 新しいバージョンの確認とお知らせ（`UpdateChecker`）が読むリリースの一覧
