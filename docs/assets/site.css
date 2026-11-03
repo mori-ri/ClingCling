@@ -501,3 +501,17 @@ kbd {
   html { scroll-behavior: auto; }
   .say, .download { transition: none; }
 }
+
+/* ── 実際の画面 ──
+   画像は DEBUG ビルドの CLINGCLING_SNAPSHOT で書き出したもの（CLAUDE.md）。周りの透明な余白に影が入っている */
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+  gap: 28px 40px;
+  margin-bottom: clamp(48px, 6vw, 80px);
+}
+.shots figure { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.shots img { width: 100%; height: auto; }
+/* 画像の余白の分だけ寄せて、ポップアップの左端にそろえる */
+.shots figcaption { padding-left: 3%; color: var(--navy-soft); font-size: 15px; line-height: 1.6; }

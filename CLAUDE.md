@@ -34,7 +34,7 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 
 ## 画面の確認
 
-- DEBUG ビルドには開発用の環境変数がある（`main.swift`）: `CLINGCLING_SNAPSHOT`、`CLINGCLING_APPEARANCE`（`dark` / `light`）、`CLINGCLING_SETTINGS_PAGE`（`general` / `ai` / `privacy` / `applications`）、`CLINGCLING_SETTINGS_SNAPSHOT`。
+- DEBUG ビルドには開発用の環境変数がある（`main.swift`）: `CLINGCLING_SNAPSHOT`（`CLINGCLING_SNAPSHOT_ACTIONS=1` で操作メニューも開く）、`CLINGCLING_APPEARANCE`（`dark` / `light`）、`CLINGCLING_SETTINGS_PAGE`（`general` / `ai` / `privacy` / `applications`）、`CLINGCLING_SETTINGS_SNAPSHOT`。
 - 書き出しの `cacheDisplay` は SwiftUI の blur、Liquid Glass、material、behind-window ブラーを描かない。色と配置は確かめられるが、質感と、ガラスの上の文字の色は確かめられない。
 - 実データに触れずに動かすときは、`CFFIXED_USER_HOME` で履歴の保存先を分ける。ただし `UserDefaults` は分かれないので、`io.github.mori-ri.clingcling.preview` などの別のバンドル ID を付けた `.app` に入れて動かし、終わったら `defaults delete` する。
 - シェルから直接起動すると親のプロセスの権限を引き継ぐ。権限がない状態を見るときは `open -n --env …` で起動する。
@@ -62,6 +62,8 @@ scripts/subset-site-font.sh              # LP の見出しフォントを、ペ�
 - 外部のサービスを読み込まない。フッターにそう書いているので、解析ツールや Web フォントの CDN を足さない。
 - `docs/assets/site.js` のデモは `ContentClassifier`・`SecretDetector`・`ActionRanker` の規則を移したもの。規則や Action 名を変えたら、こちらとページの一覧も直す。
 - 見出しに新しい漢字を使ったら `scripts/subset-site-font.sh` を実行する。
+- ダウンロードのボタンは `releases/latest/download/ClingCling.dmg` を指す。この名前の dmg は `scripts/release.sh` の upload が添付する。
+- `docs/assets/shot-*.webp` は実際のポップアップの画像。`CLINGCLING_SNAPSHOT` で書き出した PNG を `cwebp -lossless` で変換する。履歴は `CFFIXED_USER_HOME` で分けて、ページの見本と同じ内容を入れる。画面を変えたら撮り直す。
 
 ## 規約
 

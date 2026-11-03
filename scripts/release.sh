@@ -179,7 +179,10 @@ upload() {
     || die "HEAD がタグ $tag ではありません。"
   # && でつなぐ。publish は `||` の中で呼ぶので set -e が効かず、ビルドに失敗しても古い dmg を添付してしまう。
   # NOTARIZE を固定するのも同じ理由で、環境に 0 があると下で添付する名前の dmg が作られない。
-  NOTARIZE=1 scripts/package.sh && gh release upload "$tag" "build/ClingCling-$version-$(uname -m).dmg" --clobber
+  # LP のダウンロードは releases/latest/download/ClingCling.dmg を指すので、同じ dmg をこの名前でも添付する。
+  local dmg="build/ClingCling-$version-$(uname -m).dmg"
+  NOTARIZE=1 scripts/package.sh && cp "$dmg" build/ClingCling.dmg \
+    && gh release upload "$tag" "$dmg" build/ClingCling.dmg --clobber
 }
 
 case "${1:-}" in
