@@ -4,6 +4,8 @@ import Foundation
 /// - 既知の Secret を含む・本文のほとんどが Token → 全体を伏せる
 /// - ランダムに見える文字列（ID など）を含むだけ → その部分だけを伏せる
 ///   （URL や Markdown の中にランダムな ID が 1 つあるだけで全体が読めなくならないように）
+///
+/// 文字を読み取った画像は、ラベル（「画像 1280×720」）の代わりに読み取った文字を本文として扱う。
 extension ClipItem {
     /// 1 行目から最大 3 行・この文字数までを検査して一覧に出す
     private static let rowScanLimit = 2_000
@@ -22,7 +24,7 @@ extension ClipItem {
 
     /// 一覧の行に出す本文
     public func rowText(detector: SecretDetector) -> String {
-        let collapsed = content
+        let collapsed = displayContent
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -37,13 +39,14 @@ extension ClipItem {
     /// 全体を伏せる Item は、ここで本文が読めてしまわないよう一覧と同じ表示にする。
     public func fullText(limit: Int, detector: SecretDetector) -> String {
         if isFullyMasked { return rowText(detector: detector) }
-        guard needsRedaction else { return String(content.prefix(limit)) }
-        return detector.redact(Self.cut(content, at: limit))
+        let text = displayContent
+        guard needsRedaction else { return String(text.prefix(limit)) }
+        return detector.redact(Self.cut(text, at: limit))
     }
 
     /// `fullText(limit:)` が本文を途中で切るか。全体を伏せる Item は切らずに伏せるので false。
     public func isFullTextCut(limit: Int) -> Bool {
-        !isFullyMasked && Self.isLonger(content, than: limit)
+        !isFullyMasked && Self.isLonger(displayContent, than: limit)
     }
 
     /// `count` は全体を数えるので、長い本文でも先頭だけを見る

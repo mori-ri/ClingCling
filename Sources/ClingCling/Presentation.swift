@@ -26,12 +26,14 @@ enum Presentation {
 
     /// 一覧に出す本文。マスクの規則は `ClipItem.rowText` を参照。
     static func preview(_ item: ClipItem) -> String {
-        if let cached = previewCache[item.id], cached.hash == item.contentHash { return cached.text }
+        // 文字を読み取る前に保存した画像は、コピーし直すと同じハッシュのまま読み取った文字が付く
+        let key = item.contentHash + (item.recognizedText == nil ? "" : "+text")
+        if let cached = previewCache[item.id], cached.key == key { return cached.text }
         let text = item.rowText(detector: detector)
         // 一時 Item（OTP など）は期限後にメモリへ残らないようキャッシュしない
         guard !item.isTemporary else { return text }
         if previewCache.count > 2_000 { previewCache.removeAll() }
-        previewCache[item.id] = (item.contentHash, text)
+        previewCache[item.id] = (key, text)
         return text
     }
 
@@ -44,7 +46,7 @@ enum Presentation {
     }
 
     /// `preview` の結果（再描画のたびに Secret 検出をやり直さないため）
-    private static var previewCache: [UUID: (hash: String, text: String)] = [:]
+    private static var previewCache: [UUID: (key: String, text: String)] = [:]
     private static let detector = SecretDetector()
 
     private static let relative: RelativeDateTimeFormatter = {
@@ -109,6 +111,7 @@ enum Presentation {
         case .format: String(localized: "JSON を整形")
         case .inspect: String(localized: "JSON の構造を見る")
         case .saveImage: String(localized: "ダウンロードに保存")
+        case .copyText: String(localized: "テキストをコピー")
         }
     }
 }

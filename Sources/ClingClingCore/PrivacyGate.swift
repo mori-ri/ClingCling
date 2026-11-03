@@ -33,11 +33,14 @@ public struct ImageCapture: Sendable {
     public var png: Data
     public var width: Int
     public var height: Int
+    /// Vision で読み取った文字（OCR）。文字が写っていなければ空
+    public var recognizedText: String
 
-    public init(png: Data, width: Int, height: Int) {
+    public init(png: Data, width: Int, height: Int, recognizedText: String = "") {
         self.png = png
         self.width = width
         self.height = height
+        self.recognizedText = recognizedText
     }
 }
 
@@ -136,17 +139,7 @@ public struct PrivacyGate: Sendable {
 
         // 3. Secret Detection（正規表現 + エントロピー）
         let findings = detector.scan(text)
-        var reasons: [String] = []
-        var sensitivity: Sensitivity = .normal
-        for finding in findings {
-            let level: Sensitivity = switch finding.kind {
-            case .knownSecret: .secret
-            case .highEntropy: .suspicious
-            case .personal: .personal
-            }
-            sensitivity = max(sensitivity, level)
-            if !reasons.contains(finding.rule) { reasons.append(finding.rule) }
-        }
+        var (sensitivity, reasons) = Self.sensitivity(of: findings)
 
         // 4. Content Classification
         var type = classifier.classify(text)
@@ -187,13 +180,34 @@ public struct PrivacyGate: Sendable {
         return .capture(item)
     }
 
-    /// 画像は中身（写っている文字）を検査できないので、保存はしても外部送信は常に不可（Fail Closed）
+    /// 画像は写っている文字だけを検査する（OCR はアプリ側で Vision が行い、`recognizedText` で渡される）。
+    /// 文字以外の中身や OCR の読み違いまでは検査できないので、保存はしても外部送信は常に不可（Fail Closed）。
+    /// 読み取った文字に Secret・認証コードがあれば、テキストと同じくディスクに書かない一時 Item にする。
     func evaluateImage(_ image: ImageCapture, input: CaptureInput, settings: PrivacySettings) -> GateDecision {
         guard !image.png.isEmpty, image.width > 0, image.height > 0 else { return .drop(reason: "empty") }
         if let drop = precheck(input, settings: settings) { return drop }
         let policy = Self.policy(for: input.source, settings: settings)
-        var reasons = ["Image: content not inspected"]
+
+        let text = image.recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var sensitivity: Sensitivity = .normal
+        var reasons: [String]
+        var isVerificationCode = false
+        if text.isEmpty {
+            reasons = ["Image: content not inspected"]
+        } else {
+            let scanned = Self.sensitivity(of: detector.scan(text))
+            sensitivity = scanned.sensitivity
+            reasons = ["Image: text recognized"] + scanned.reasons
+            if classifier.classify(text) == .verificationCode {
+                isVerificationCode = true
+                sensitivity = .secret
+                reasons.append("Verification Code")
+            }
+        }
         if policy == .localOnly { reasons.append("App policy: Local only") }
+
+        let temporary = (isVerificationCode && settings.neverSaveVerificationCodes)
+            || (!isVerificationCode && sensitivity == .secret && settings.neverSavePasswords)
         let hash = ContentHash.sha256(image.png)
         return .capture(ClipItem(
             createdAt: input.date,
@@ -201,13 +215,29 @@ public struct PrivacyGate: Sendable {
             contentHash: hash,
             contentType: .image,
             source: input.source,
-            sensitivity: .normal,
-            retention: .normal,
+            sensitivity: sensitivity,
+            retention: temporary ? .temporary : .normal,
             externalAllowed: false,
-            expiresAt: nil,
+            expiresAt: temporary ? input.date.addingTimeInterval(settings.temporaryLifetime) : nil,
             reasons: reasons,
-            image: ClipImage(fileName: hash + ".png", width: image.width, height: image.height)
+            image: ClipImage(fileName: hash + ".png", width: image.width, height: image.height, text: text)
         ))
+    }
+
+    /// 検出結果から機密度と判定理由（規則名、重複なし）をまとめる
+    static func sensitivity(of findings: [SecretFinding]) -> (sensitivity: Sensitivity, reasons: [String]) {
+        var reasons: [String] = []
+        var sensitivity: Sensitivity = .normal
+        for finding in findings {
+            let level: Sensitivity = switch finding.kind {
+            case .knownSecret: .secret
+            case .highEntropy: .suspicious
+            case .personal: .personal
+            }
+            sensitivity = max(sensitivity, level)
+            if !reasons.contains(finding.rule) { reasons.append(finding.rule) }
+        }
+        return (sensitivity, reasons)
     }
 
     /// Pasteboard metadata（nspasteboard.org の慣習）とコピー元アプリの判定。キャプチャしないなら drop を返す。

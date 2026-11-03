@@ -37,6 +37,7 @@ open build/ClingCling.app
 - **ファイルに保存**: アクションメニューの「ダウンロードに保存」か `⌘S` で、選んだ Item を「ダウンロード」に書き出して Finder で示す（テキストは UTF-8 の `.txt`、JSON は `.json`、画像は `.png`。名前は「ClingCling <コピーした日時>」）。ディスクに書かない一時 Item（パスワード・API キー・認証コード）は保存できない
 - **行にマウスを載せる**と、横のカードに全文と、いつ・どのアプリでコピーしたかが出る。長い本文はカードの上でスクロールできる（表示は先頭 20,000 文字まで）。Secret は一覧と同じくマスクされたまま
 - **画像**（スクリーンショット、プレビューや Web からの画像コピー）も履歴に残る。行にサムネイル、行にマウスを載せると横に拡大プレビュー、`→` のアクションメニューにも大きめのプレビュー。`↩` で画像として貼り付け、「ダウンロードに保存」で PNG を書き出し
+  - 取り込むときに macOS の Vision で**写っている文字を読み取る**（OCR。日本語と英語、処理はすべて Mac の中）。読み取った文字は一覧の行とプレビューに出て、検索でも見つかる。アクションメニューの「テキストをコピー」で文字だけを貼り付け
   - テキストも一緒に載っているコピー（表計算のセルなど）はテキストとして扱う。Finder でのファイルコピーは対象外
 - AI Action（説明する / 文章を整える / 短くする / 翻訳する）は Settings → AI で有効化。API は直接呼ばず、指示文を付けた本文を AI に渡します。
   - **アプリ**（既定: Claude アプリ / ChatGPT アプリ）: アプリを前面に出し、⌘N で新しいチャットを開いて貼り付け（任意で ↩ 送信）。終わったらクリップボードを元に戻す。アクセシビリティ権限が必要
@@ -70,8 +71,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | `ClingClingCore/SecretDetector` | 既知 Secret の正規表現、クレジットカード（Luhn）、高エントロピー文字列、個人情報 |
 | `ClingClingCore/ContentClassifier` | ルールベース分類（text / url / code / command / error / email / address / json / credential / verification_code / other） |
 | `ClingClingCore/ActionRanker` | 分類＋コピー元アプリで候補を作り、ローカル利用統計で並べ替えて最大 3 つ |
-| `ClingClingCore/ClipStore` | SQLite（`~/Library/Application Support/ClingCling`、0600）。画像本体は同じ場所の `images/<hash>.png`（0600、行が消えるとファイルも削除）。重複排除、保存期間、Action 統計、First Action Selection Rate |
-| `ClingCling/*` | メニューバー、Clipboard 監視、⌘⇧V（Carbon HotKey）、ポップアップ、Action 実行、AI への受け渡し（`AIHandoff`）、設定 |
+| `ClingClingCore/ClipStore` | SQLite（`~/Library/Application Support/ClingCling`、0600）。画像本体は同じ場所の `images/<hash>.png`（0600、行が消えるとファイルも削除）、読み取った文字は DB。重複排除、保存期間、Action 統計、First Action Selection Rate |
+| `ClingCling/*` | メニューバー、Clipboard 監視、画像の文字の読み取り（`TextRecognizer`、Vision）、⌘⇧V（Carbon HotKey）、ポップアップ、Action 実行、AI への受け渡し（`AIHandoff`）、設定 |
 
 ## Privacy の振る舞い
 
@@ -81,7 +82,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 既知 Secret（API キー、JWT、秘密鍵、接続文字列、カード番号…）、認証コード | **ディスクに書かず**メモリで 5 分保持、一覧とカードではマスク（認証コードは読めるようそのまま表示）、外部送信不可 |
 | 高エントロピー文字列（未知 Token・長い Hex） | 保存するが Local only。一覧とカードでは該当部分だけをマスク（URL のパスやファイルパス、CamelCase の語は Token とみなさない） |
 | 個人情報（メール・電話番号）、住所、Local Only アプリ、分類不能 | 保存するが Local only |
-| 画像 | 中身を検査できないので保存はするが常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
+| 画像 | 写っている文字（OCR）をテキストと同じく Secret 検出にかける。Secret や認証コードが写っていれば、画像もディスクに書かずメモリで 5 分保持。文字以外の中身や読み違いまでは検査できないので、常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | それ以外の text / url / code / command / error / json | 明示操作時のみ AI / Search を提示（渡す前に確認） |
 
 履歴の保存先（`~/Library/Application Support/ClingCling`）は Time Machine のバックアップから除外します。除外する前のバックアップに含まれている分は、バックアップ側に残ります。

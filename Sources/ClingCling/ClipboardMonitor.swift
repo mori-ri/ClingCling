@@ -54,7 +54,8 @@ final class ClipboardMonitor {
         let png = pasteboard.data(forType: .png)
         guard let data = png ?? pasteboard.data(forType: .tiff), data.count <= Self.maxImageBytes else { return }
 
-        // TIFF → PNG の変換は重いことがあるので裏で行う
+        // TIFF → PNG の変換と文字の読み取り（OCR）は重いことがあるので裏で行う。
+        // Privacy Gate は読み取った文字で Secret を判定するので、読み取りが終わってから渡す。
         let isPNG = png != nil
         let date = Date()
         let onCapture = onCapture
@@ -66,10 +67,11 @@ final class ClipboardMonitor {
         }
     }
 
-    /// 保存用の PNG とピクセルサイズ
+    /// 保存用の PNG とピクセルサイズ、写っている文字（OCR）
     nonisolated static func makeImage(_ data: Data, isPNG: Bool) -> ImageCapture? {
         guard let rep = NSBitmapImageRep(data: data), rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return nil }
         guard let png = isPNG ? data : rep.representation(using: .png, properties: [:]) else { return nil }
-        return ImageCapture(png: png, width: rep.pixelsWide, height: rep.pixelsHigh)
+        let text = rep.cgImage.map(TextRecognizer.recognizeText(in:)) ?? ""
+        return ImageCapture(png: png, width: rep.pixelsWide, height: rep.pixelsHigh, recognizedText: text)
     }
 }

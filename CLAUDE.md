@@ -42,7 +42,7 @@ swift scripts/make-icons.swift Resources/Branding/ClingCling-logo.png Resources/
 - `ClingClingCore`: UI に依存しない判定ロジック（Privacy Gate、分類、Action の順位、SQLite 保存）。テストはこのターゲットだけを対象にする。
 - `ClingCling`: メニューバーアプリ本体。ロジックを足すときは、テストできるよう可能な限り Core に置く。
 
-**取り込みの流れ**: `ClipboardMonitor` が 0.4 秒ごとに `changeCount` を見る → `AppModel.capture` → `PrivacyGate.evaluate`（marker → コピー元アプリ → Secret 検出 → 分類 → 外部送信可否 → Retention）→ `ClipStore.save`。一時 Item はディスクに書かず `ClipStore` のメモリ上で保持する。
+**取り込みの流れ**: `ClipboardMonitor` が 0.4 秒ごとに `changeCount` を見る（画像は裏で PNG への変換と `TextRecognizer` の OCR を済ませてから渡す）→ `AppModel.capture` → `PrivacyGate.evaluate`（marker → コピー元アプリ → Secret 検出 → 分類 → 外部送信可否 → Retention）→ `ClipStore.save`。一時 Item はディスクに書かず `ClipStore` のメモリ上で保持する（画像も同じ。読み取った文字に Secret があれば一時 Item になる）。
 
 **貼り付け**: `PopupPanel` はフォーカスを奪わないので、直前のアプリが前面のまま残り、`ActionExecutor.pasteIntoFrontmostApp` の ⌘V がそのアプリに届く。貼り付けは必ず `PopupViewModel.pasteWrittenContent` を通す。権限がないときや Secure Input の間は、ポップアップを閉じずに `notice` で理由を出す。
 
