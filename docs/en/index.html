@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ClingCling | The Mac clipboard that suggests what to do next</title>
+<meta name="description" content="URLs open. Errors go to AI. API keys vanish. ClingCling recognizes what you copied, on your Mac, and suggests what to do next.">
+<meta name="theme-color" content="#ff6b84">
+<link rel="canonical" href="https://mori-ri.github.io/ClingCling/en/">
+<link rel="alternate" hreflang="ja" href="https://mori-ri.github.io/ClingCling/">
+<link rel="alternate" hreflang="en" href="https://mori-ri.github.io/ClingCling/en/">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/icon-32.png">
+<link rel="apple-touch-icon" href="../assets/icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ClingCling">
+<meta property="og:description" content="URLs open. Errors go to AI. API keys vanish. A Mac clipboard that recognizes what you copied, on your Mac.">
+<meta property="og:url" content="https://mori-ri.github.io/ClingCling/en/">
+<meta property="og:image" content="https://mori-ri.github.io/ClingCling/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="../assets/DelaGothicOne-subset.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="./"><img src="../assets/mark-white.svg" alt="">ClingCling</a>
+      <nav aria-label="Page">
+        <a href="../" lang="ja" hreflang="ja">日本語</a>
+        <a class="optional" href="https://github.com/mori-ri/ClingCling">GitHub</a>
+        <a class="pill" href="https://github.com/mori-ri/ClingCling/releases/latest">Download</a>
+      </nav>
+    </div>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>
+          <button class="say" type="button" aria-pressed="true">URLs open.</button>
+          <button class="say" type="button" aria-pressed="false">Errors go to AI.</button>
+          <button class="say" type="button" aria-pressed="false">API keys vanish.</button>
+        </h1>
+        <p class="hero-lead">ClingCling recognizes what you copied, right on your Mac, and suggests what to do next. Press ⌘⇧V to open your history beside the text cursor and pick from the keyboard.</p>
+        <div class="cta">
+          <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest">Download</a>
+          <p>macOS 14 or later. Opens the GitHub Releases page.</p>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <img class="rings" src="../assets/mark-white.svg" alt="">
+        <div class="pop-row-wrap opens" aria-label="Example of the ClingCling popup">
+          <div class="pop list"></div>
+          <div class="pop menu"></div>
+        </div>
+        <p class="stage-note">Press a line of the headline to change the suggestions.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="band" id="kinds">
+  <div class="wrap">
+    <div class="head">
+      <h2>What you copy decides what comes next</h2>
+      <p class="lead">Every kind pastes with <kbd>↩</kbd>. Of the other actions, the one furthest left is the top suggestion. The ones you pick most move forward over time. That learning stays on your Mac too.</p>
+    </div>
+
+    <table class="kinds">
+      <thead>
+        <tr><th scope="col">Kind</th><th scope="col">What you copied</th><th scope="col">Suggested actions</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">URL</th><td class="sample"><code>https://example.com/report/2026-q3</code></td><td><ul class="suggest"><li>Open in Browser</li><li>Copy Markdown Link</li></ul></td></tr>
+        <tr><th scope="row">Error</th><td class="sample"><code>TypeError: x is not a function</code></td><td><ul class="suggest"><li>Explain</li><li>Search the Web</li></ul></td></tr>
+        <tr><th scope="row">Command</th><td class="sample"><code>git log --oneline -5</code></td><td><ul class="suggest"><li>Run in Terminal</li><li>Explain</li></ul></td></tr>
+        <tr><th scope="row">Text</th><td class="sample"><code class="plain">The meeting moves to Wednesday at 3 pm.</code></td><td><ul class="suggest"><li>Polish</li><li>Shorten</li></ul></td></tr>
+        <tr><th scope="row">JSON</th><td class="sample"><code>{"app":"ClingCling","local":true}</code></td><td><ul class="suggest"><li>Format JSON</li><li>Inspect JSON</li></ul></td></tr>
+        <tr><th scope="row">Code</th><td class="sample"><code>const total = items.length;</code></td><td><ul class="suggest"><li>Explain</li></ul></td></tr>
+        <tr><th scope="row">Email</th><td class="sample"><code>hello@example.com</code></td><td><ul class="suggest"><li>New Email</li></ul></td></tr>
+        <tr><th scope="row">Address</th><td class="sample"><code class="plain">350 Fifth Avenue, New York 10118</code></td><td><ul class="suggest"><li>Open in Maps</li></ul></td></tr>
+        <tr><th scope="row">Login code</th><td class="sample"><code>482913</code></td><td><ul class="suggest"><li class="aside">Paste only. Clears in 5 minutes</li></ul></td></tr>
+        <tr><th scope="row">Image</th><td class="sample"><em>Screenshots, images from the web or Preview</em></td><td><ul class="suggest"><li>Save to Downloads</li></ul></td></tr>
+      </tbody>
+    </table>
+    <p class="try mac note">Try it here. Click a sample, press <kbd>⌘C</kbd>, then <kbd>⌘⇧V</kbd>, and the popup opens right there. Any text on this page works. The check runs in your browser and nothing you copy is sent anywhere.</p>
+
+    <div class="keys-grid">
+      <div>
+        <h3>Done from the keyboard</h3>
+        <dl class="keys">
+          <div><dt><kbd>⌘⇧V</kbd></dt><dd>Open beside the cursor</dd></div>
+          <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move through history</dd></div>
+          <div><dt><kbd>↩</kbd></dt><dd>Paste</dd></div>
+          <div><dt><kbd>1–9</kbd></dt><dd>Paste the nth item</dd></div>
+          <div><dt><kbd>→</kbd></dt><dd>Show the actions</dd></div>
+          <div><dt><kbd>⌘1–3</kbd></dt><dd>Run a suggested action</dd></div>
+          <div><dt><kbd>⌘S</kbd></dt><dd>Save to Downloads</dd></div>
+          <div><dt><kbd>⌘P</kbd></dt><dd>Pin</dd></div>
+        </dl>
+      </div>
+      <div>
+        <h3>Type to filter your history</h3>
+        <p>Case is ignored, and so are full-width and half-width forms and hiragana and katakana. Spaces mean AND. While you compose Japanese text, the keys go to the input method as usual.</p>
+        <p>In apps that don't report the cursor position, the popup opens at the mouse pointer. You can change the shortcut in Settings.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band navy" id="privacy">
+  <div class="wrap">
+    <div class="head">
+      <h2>ClingCling makes no network connections</h2>
+      <p class="lead">Every check runs on your Mac. What you copy decides how far it can travel, and most of it never leaves your Mac.</p>
+    </div>
+
+    <table class="reach">
+      <thead>
+        <tr><th scope="col">What you copied</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">AI</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="what" scope="row"><b>Ignored</b><span>Password managers, copies marked concealed, apps you exclude</span></th>
+          <td class="off">No</td><td class="off">No</td><td class="off">No</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>Gone in 5 minutes</b><span>API keys, JWTs, private keys, card numbers, login codes</span></th>
+          <td class="on start end">5 minutes</td><td class="off">Never written</td><td class="off">Blocked</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>Stays on your Mac</b><span>Email addresses, phone numbers, street addresses, images, random-looking strings</span></th>
+          <td class="on start">Kept</td><td class="on end">Saved</td><td class="off">Blocked</td>
+        </tr>
+        <tr>
+          <th class="what" scope="row"><b>To AI when you ask</b><span>Text, URLs, code, commands, errors, JSON</span></th>
+          <td class="on start">Kept</td><td class="on">Saved</td><td class="on end spark">After you confirm</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="limits">
+      <div>
+        <h3>What it can't catch</h3>
+        <ul>
+          <li>Detection relies on rules and entropy. Passwords with no recognizable format and people's names aren't detected, so they are saved as ordinary text and can go to AI. Read the confirmation screen before you send.</li>
+          <li>The source app is whichever app is frontmost at the 0.4-second check. If you switch apps right after copying, it may be recorded as a different app.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>How history is stored</h3>
+        <ul>
+          <li>History is an SQLite database with 0600 file permissions. It is not encrypted.</li>
+          <li>The folder is excluded from Time Machine backups.</li>
+          <li>Links other than web pages and Run in Terminal ask for confirmation first.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="ai">
+  <div class="wrap ai-grid">
+    <div class="ai-copy">
+      <div class="head">
+        <h2>AI sees it only when you ask</h2>
+        <p class="lead">No API key needed. ClingCling hands your text and an instruction to the Claude or ChatGPT app or website you already use. This stays off until you turn it on in Settings.</p>
+      </div>
+      <ol class="steps">
+        <li>Press <kbd>→</kbd> on a history item and choose Explain</li>
+        <li>Read the instruction and text on the confirmation screen</li>
+        <li>ClingCling opens the app and pastes into a new chat, or opens a URL</li>
+        <li>Your clipboard goes back to what it was</li>
+      </ol>
+      <p>You can edit the instructions and add your own named actions, like “Summarize in 3 lines” or “Make it formal.”</p>
+    </div>
+
+    <figure class="pop confirm" aria-label="Example of the confirmation screen before handing text to AI">
+      <div class="confirm-in">
+        <div class="confirm-title"><span>Explain</span><span>Claude</span></div>
+        <p class="confirm-desc">Opens Claude, then pastes the following instruction and 62 characters of text into a new chat.</p>
+        <div class="confirm-box">
+          <b>Briefly explain the likely causes of the following error and concrete steps to fix it.</b>
+          <code>TypeError: Cannot read properties of undefined (reading 'map')</code>
+        </div>
+        <div class="confirm-buttons"><span>Cancel esc</span><span class="go">Send ↩</span></div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="band get" id="get">
+  <div class="wrap get-grid">
+    <div>
+      <h2>Put it on your Mac</h2>
+      <p class="lead">Unzip, move ClingCling.app to Applications, and open it. Opening beside the text cursor needs the Accessibility permission.</p>
+      <div class="cta">
+        <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest">Download</a>
+        <p>macOS 14 or later. Signed with a Developer ID and notarized by Apple.</p>
+      </div>
+    </div>
+    <div>
+      <div class="source">
+        <p>You can also build from source. Xcode isn't required.</p>
+        <pre tabindex="0"><code>git clone https://github.com/mori-ri/ClingCling.git
+cd ClingCling
+./scripts/bundle.sh
+open build/ClingCling.app</code></pre>
+      </div>
+      <p class="links">
+        <a href="https://github.com/mori-ri/ClingCling">Source code</a>
+        <a href="https://github.com/mori-ri/ClingCling/discussions/new?category=general">Send feedback</a>
+        <a href="https://github.com/sponsors/mori-ri">Sponsor development</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul>
+      <li><a href="https://github.com/mori-ri/ClingCling#readme">Documentation</a></li>
+      <li><a href="https://github.com/mori-ri/ClingCling/discussions/new?category=general">Feedback</a></li>
+      <li><a href="https://github.com/sponsors/mori-ri">Sponsor</a></li>
+      <li><a href="https://github.com/mori-ri/ClingCling">GitHub</a></li>
+    </ul>
+    <p>The source code is under the MIT License. The app icon and logo are not covered by it.</p>
+    <p>This page uses no cookies or analytics and loads nothing from other services.</p>
+  </div>
+</footer>
+
+</body>
+</html>
