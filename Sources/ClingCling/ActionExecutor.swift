@@ -166,21 +166,32 @@ enum ActionExecutor {
     /// 画像を「ダウンロード」に PNG で書き出して Finder で示す
     private static func saveImage(_ item: ClipItem, model: AppModel) -> Outcome {
         guard let data = model.imageData(for: item) else { return .failure(String(localized: "画像が見つかりませんでした。")) }
-        let fm = FileManager.default
-        let folder = fm.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let base = "ClingCling \(formatter.string(from: item.lastCopiedAt))"
-        var url = folder.appendingPathComponent(base + ".png")
-        var n = 2
-        while fm.fileExists(atPath: url.path) {
-            url = folder.appendingPathComponent("\(base) \(n).png")
-            n += 1
+        return saveToDownloads(data, item: item)
+    }
+
+    /// Item を「ダウンロード」にファイルで書き出して Finder で示す。
+    /// テキストは UTF-8 の `.txt`（JSON は `.json`）、画像は PNG。
+    static func saveFile(_ item: ClipItem, model: AppModel) -> Outcome {
+        // 一時 Item（Secret・認証コード）はディスクに書かない約束なので、ファイルにも書かない
+        guard ExportFile.canExport(item) else {
+            return .failure(String(localized: "Sensitive な一時 Item はファイルに保存できません。"))
         }
+        if item.isImage { return saveImage(item, model: model) }
+        return saveToDownloads(ExportFile.textData(for: item), item: item)
+    }
+
+    private static func saveToDownloads(_ data: Data, item: ClipItem) -> Outcome {
+        let fm = FileManager.default
+        guard let folder = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            return .failure(String(localized: "保存できませんでした。"))
+        }
+        let url = ExportFile.uniqueURL(in: folder,
+                                       baseName: ExportFile.baseName(for: item.lastCopiedAt),
+                                       fileExtension: ExportFile.fileExtension(for: item))
         do {
             try data.write(to: url, options: .withoutOverwriting)
         } catch {
-            return .failure(String(localized: "画像を保存できませんでした: \(error.localizedDescription)"))
+            return .failure(String(localized: "保存できませんでした: \(error.localizedDescription)"))
         }
         NSWorkspace.shared.activateFileViewerSelecting([url])
         return .close(paste: false)
