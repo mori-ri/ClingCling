@@ -34,6 +34,8 @@ final class PopupViewModel: ObservableObject {
         case smart(SmartAction, shortcut: Int)
         /// 自作の AI Action。`shortcut` は ⌘4–9 の番号（7 個目以降は無し）
         case custom(CustomAIAction, shortcut: Int?)
+        /// 「ダウンロード」にファイルで保存（⌘S）
+        case save
         case pin(isPinned: Bool)
         case delete
 
@@ -42,7 +44,7 @@ final class PopupViewModel: ObservableObject {
             case .paste: 0
             case .smart: 1
             case .custom: 2
-            case .pin, .delete: 3
+            case .save, .pin, .delete: 3
             }
         }
 
@@ -175,6 +177,8 @@ final class PopupViewModel: ObservableObject {
         var entries: [MenuEntry] = [.paste]
         entries += row.smartActions.prefix(3).enumerated().map { .smart($1, shortcut: $0 + 1) }
         entries += customActions(for: row.item).enumerated().map { .custom($1, shortcut: $0 < 6 ? $0 + 4 : nil) }
+        // 画像は Smart Action の「ダウンロードに保存」が並ぶので重ねない
+        if ExportFile.canExport(row.item) && !row.smartActions.contains(.saveImage) { entries.append(.save) }
         if !row.item.isTemporary { entries.append(.pin(isPinned: row.item.isPinned)) }
         entries.append(.delete)
         return entries
@@ -217,6 +221,7 @@ final class PopupViewModel: ObservableObject {
         case .paste: paste(row.item)
         case .smart(_, let shortcut): performSmart(shortcut - 1)
         case .custom(let custom, _): startAI(AIHandoff.request(for: custom, item: row.item))
+        case .save: saveSelected()
         case .pin: togglePinSelected()
         case .delete: deleteSelected()
         }
@@ -305,7 +310,11 @@ final class PopupViewModel: ObservableObject {
 
     private func execute(_ action: SmartAction, item: ClipItem, position: Int) {
         model.recordAction(action, item: item, position: position)
-        switch ActionExecutor.perform(action, on: item, model: model) {
+        handle(ActionExecutor.perform(action, on: item, model: model))
+    }
+
+    private func handle(_ outcome: ActionExecutor.Outcome) {
+        switch outcome {
         case .close(let paste):
             if paste { pasteWrittenContent() } else { close(false) }
         case .show(let title, let text): mode = .result(title: title, text: text)
@@ -410,6 +419,19 @@ final class PopupViewModel: ObservableObject {
         model.togglePin(row.item)
     }
 
+    /// 選択中の Item を「ダウンロード」にファイルで保存する（⌘S）
+    func saveSelected() {
+        guard let row = selectedRow else { return }
+        notice = nil
+        actionsOpen = false
+        // 画像は Smart Action として学習させる
+        if let position = row.actions.firstIndex(of: .saveImage) {
+            perform(.saveImage, on: row.item, position: position)
+            return
+        }
+        handle(ActionExecutor.saveFile(row.item, model: model))
+    }
+
     func deleteSelected() {
         guard let row = selectedRow else { return }
         model.delete(row.item)
@@ -460,6 +482,10 @@ final class PopupViewModel: ObservableObject {
             }
             if cmd, key == "p" {
                 togglePinSelected()
+                return true
+            }
+            if cmd, key == "s" {
+                saveSelected()
                 return true
             }
             if cmd, key == "," {

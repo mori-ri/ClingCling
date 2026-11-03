@@ -35,7 +35,8 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
 - ClingCling stays in the menu bar. Copying shows no notification.
 - **⌘⇧V** (change it in Settings › General) opens the popup next to the text cursor. Where the cursor position isn't available it opens at the mouse. Finding the cursor needs the Accessibility permission.
   - Type to filter (case, full/half width and hiragana/katakana are ignored; spaces mean AND) / `↑↓` select / `↩` or click to paste / `1–9` paste the nth item (when the search field is empty)
-  - `→` action menu / `⌘1–3` Smart Actions / `⌘4–9` your own AI Actions / `⌘P` pin / `⌘⌫` delete / `esc` close
+  - `→` action menu / `⌘1–3` Smart Actions / `⌘4–9` your own AI Actions / `⌘S` save to Downloads / `⌘P` pin / `⌘⌫` delete / `esc` close
+- **Save as a file**: "Save to Downloads" in the action menu, or `⌘S`, writes the selected item to Downloads and shows it in Finder (text as UTF-8 `.txt`, JSON as `.json`, images as `.png`, named "ClingCling <copy date and time>"). Temporary items that never reach the disk (passwords, API keys, verification codes) can't be saved.
 - **Images** (screenshots, images copied from Preview or the web) stay in the history too, with thumbnails and a larger preview on hover. `↩` pastes the image; "Save to Downloads" writes a PNG.
   - A copy that also carries text (such as spreadsheet cells) is treated as text. File copies from Finder are not captured.
 - AI Actions (explain, polish, shorten, translate) are turned on in Settings › AI. ClingCling never calls an API; it hands your instruction and the text to an AI.

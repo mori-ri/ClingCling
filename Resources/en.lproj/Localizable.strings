@@ -141,7 +141,9 @@
 "JSON として解析できませんでした。" = "Couldn't parse this as JSON.";
 "Formatted JSON（コピー済み）" = "Formatted JSON (Copied)";
 "画像が見つかりませんでした。" = "The image wasn't found.";
-"画像を保存できませんでした: %@" = "Couldn't save the image: %@";
+"保存できませんでした。" = "Couldn't save the file.";
+"保存できませんでした: %@" = "Couldn't save the file: %@";
+"Sensitive な一時 Item はファイルに保存できません。" = "Sensitive temporary items can't be saved to a file.";
 "Terminal で実行できませんでした: %@" = "Couldn't run in Terminal: %@";
 
 /* Popup */
