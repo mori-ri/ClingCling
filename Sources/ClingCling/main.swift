@@ -39,9 +39,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         #if DEBUG
         // 開発用: CLINGCLING_SNAPSHOT=/path/to.png でポップアップを開いて画像を書き出す
+        // CLINGCLING_SNAPSHOT_ACTIONS=1 を付けると、選択中の行の操作メニューを開いた状態で書き出す
         if let path = ProcessInfo.processInfo.environment["CLINGCLING_SNAPSHOT"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 self?.popup.show()
+                if ProcessInfo.processInfo.environment["CLINGCLING_SNAPSHOT_ACTIONS"] != nil { self?.popup.openActions() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.popup.writeSnapshot(to: path) }
             }
         }

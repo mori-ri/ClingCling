@@ -138,6 +138,11 @@ final class PopupController: NSObject, NSWindowDelegate {
         view.cacheDisplay(in: view.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
     }
+
+    /// 開発用: 選択中の行の操作メニューを開く（書き出しの確認用）
+    func openActions() {
+        vm.openActions()
+    }
     #endif
 
     func hide() {
