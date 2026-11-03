@@ -1,0 +1,12 @@
+# GitHub Actions のバージョンを週に 1 回確かめ、新しい版があれば PR を作る。
+# Swift のパッケージは外部の依存がないので対象にしない。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
