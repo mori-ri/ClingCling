@@ -109,8 +109,7 @@ final class AppModel: ObservableObject {
         try? store.setFolder(item.id, folder)
         // 畳んだフォルダに入れたら、入れた Item が見えるよう開く
         if let folder = folder.flatMap(PinFolders.normalizedFolder) {
-            let key = SearchQuery.normalize(folder)
-            let collapsed = settings.collapsedFolders.filter { SearchQuery.normalize($0) != key }
+            let collapsed = settings.collapsedFolders.filter { PinFolders.existing($0, in: [folder]) == nil }
             if collapsed != settings.collapsedFolders { settings.collapsedFolders = collapsed }
         }
         revision += 1
@@ -122,6 +121,14 @@ final class AppModel: ObservableObject {
         // 畳んでいたら、新しい名前でも畳んだままにする
         if settings.collapsedFolders.remove(old) != nil { settings.collapsedFolders.insert(name) }
         revision += 1
+    }
+
+    /// 中の Item がなくなって消えたフォルダを、畳んだフォルダの記録から外す。
+    /// 残すと、後で同じ名前のフォルダを作ったときに畳まれた状態で出てしまう。
+    func forgetMissingFolders() {
+        guard !settings.collapsedFolders.isEmpty else { return }
+        let kept = settings.collapsedFolders.intersection(folders())
+        if kept != settings.collapsedFolders { settings.collapsedFolders = kept }
     }
 
     /// フォルダを解除する（中の Item はピン留めのまま）

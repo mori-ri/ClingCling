@@ -165,6 +165,7 @@ final class PopupViewModel: ObservableObject {
         actionsOpen = false
         hoveredID = nil
         hidePreview()
+        model.forgetMissingFolders()
         if query.isEmpty { reload(resetSelection: true) } else { query = "" }
     }
 
@@ -216,9 +217,14 @@ final class PopupViewModel: ObservableObject {
 
     /// フォルダを畳む・開く
     func toggleFolder(_ name: String) {
-        if model.settings.collapsedFolders.remove(name) == nil { model.settings.collapsedFolders.insert(name) }
+        let collapsing = model.settings.collapsedFolders.remove(name) == nil
+        if collapsing { model.settings.collapsedFolders.insert(name) }
         actionsOpen = false
+        // 選んでいた行を畳んだら、同じ位置に来た別の Item ではなく、フォルダの直後の行を選ぶ
+        let folderStart = sections.first { $0.kind == .folder(name) }?.start
+        let hidesSelection = collapsing && selectedRow?.item.folder == name
         reload(resetSelection: false)
+        if hidesSelection, let folderStart { selection = min(folderStart, max(rows.count - 1, 0)) }
     }
 
     // MARK: - Preview
