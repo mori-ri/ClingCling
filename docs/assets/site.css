@@ -117,6 +117,7 @@ h2, h3 { word-break: auto-phrase; }
   align-items: center;
   gap: 12px 20px;
 }
+.cta p b { font-weight: 600; }
 .cta p { font-size: 15px; line-height: 1.6; max-width: 24em; text-wrap: pretty; word-break: auto-phrase; }
 
 /* ── ヒーロー ── */
@@ -204,6 +205,14 @@ h1 {
 
 /* 見出しの 3 行は、そのままポップアップの切り替えになっている。
    選んだ行は、テキストを選択したときのように反転する */
+/* 3 行の上に置く、体験を一言で言うコピー。見出しの一部なので h1 の中に置く */
+.tagline {
+  display: block;
+  margin-bottom: 0.5em;
+  font-size: max(20px, 0.42em);
+  line-height: 1.4;
+}
+
 .say {
   display: block;
   white-space: nowrap;
@@ -303,6 +312,39 @@ h1 {
     from { opacity: 0; transform: translateY(-6px) scale(0.97); }
   }
 }
+
+/* ── 使い方の 3 つの例 ── */
+
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 2vw, 28px);
+}
+.case {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: clamp(24px, 2.4vw, 32px);
+  border-radius: 20px;
+  background: var(--mist);
+}
+.case > p { font-size: 16px; line-height: 1.75; text-wrap: pretty; word-break: auto-phrase; }
+.case h3 { text-wrap: balance; }
+.case-kind { font-size: 14px; font-weight: 600; color: var(--accent); }
+
+/* いままでと ClingCling の手数。下に揃えて、3 つを横に比べられるようにする */
+.flow { display: grid; gap: 10px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
+.flow > div { display: grid; gap: 4px; }
+.flow dt { font-size: 13px; color: var(--navy-soft); }
+.flow dd { font-size: 15px; line-height: 1.6; }
+.flow .now dt { color: var(--accent); font-weight: 600; }
+.flow .now dd { font-weight: 600; }
+.seq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
+.seq li { display: inline-flex; align-items: center; gap: 4px; }
+.seq li + li::before { content: "→"; content: "→" / ""; margin-inline: 8px; color: var(--navy-soft); font-weight: 400; }
+
+.cases + .band { padding-top: 0; }
 
 /* ── 提案の一覧 ── */
 
@@ -469,6 +511,10 @@ kbd {
   .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 40px; }
   h1 { font-size: clamp(26px, 7.5vw, 66px); }
   .rings { left: 60px; top: -226px; width: 640px; }
+}
+
+@media (max-width: 1080px) {
+  .case-grid { grid-template-columns: minmax(0, 1fr); max-width: 40em; }
 }
 
 @media (max-width: 900px) {
