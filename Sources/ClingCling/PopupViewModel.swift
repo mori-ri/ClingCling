@@ -62,7 +62,18 @@ final class PopupViewModel: ObservableObject {
     @Published private(set) var rows: [Row] = []
     /// `rows` の先頭からこの件数がピン留め（検索中は 0）
     @Published private(set) var pinnedCount = 0
-    @Published var selection = 0 { didSet { if selection != oldValue { actionsOpen = false } } }
+    @Published var selection = 0 {
+        didSet {
+            selectedByPointer = false
+            pointerLocationAtSelection = NSEvent.mouseLocation
+            if selection != oldValue { actionsOpen = false }
+        }
+    }
+    /// 直前の選択はマウスを載せて選んだもの（見えている行なので、スクロールで追わない）
+    private(set) var selectedByPointer = false
+    /// 選択を変えたときのマウスの位置。マウスを動かさないまま行が下に来ただけ
+    /// （マウスの位置に開いた直後、キーボードでの移動によるスクロール）では選ばない。
+    private var pointerLocationAtSelection: CGPoint?
     @Published var mode: Mode = .list { didSet { if case .list = mode {} else { hidePreview() } } }
     @Published var notice: String?
     @Published var dontAskAgain = false
@@ -113,6 +124,7 @@ final class PopupViewModel: ObservableObject {
         actionsOpen = false
         hoveredID = nil
         hidePreview()
+        pointerLocationAtSelection = NSEvent.mouseLocation
         if query.isEmpty { reload(resetSelection: true) } else { query = "" }
     }
 
@@ -166,6 +178,15 @@ final class PopupViewModel: ObservableObject {
         previewTask?.cancel()
         previewTask = nil
         if preview != nil { preview = nil }
+    }
+
+    /// 行の上でマウスが動いたら、その行を選ぶ（ハイライトして › からアクションメニューを開けるように）。
+    /// アクションメニューを開いている間は選び直さない。メニューへ斜めにマウスを動かす途中で閉じてしまうので。
+    func pointerMoved(over index: Int) {
+        guard !actionsOpen, case .list = mode, rows.indices.contains(index), selection != index else { return }
+        guard NSEvent.mouseLocation != pointerLocationAtSelection else { return }
+        selection = index
+        selectedByPointer = true
     }
 
     func moveSelection(_ delta: Int) {
