@@ -39,14 +39,15 @@
     <div class="hero-grid">
       <div class="hero-copy">
         <h1>
+          <span class="tagline">コピーの、その先まで。</span>
           <button class="say" type="button" aria-pressed="true">URL は開く。</button>
           <button class="say" type="button" aria-pressed="false">エラーは AI に聞く。</button>
           <button class="say" type="button" aria-pressed="false">API キーは残さない。</button>
         </h1>
-        <p class="hero-lead">ClingCling はコピーした内容を Mac の中で見分けて、次の操作を提案するクリップボードです。⌘⇧V でカーソルの横に履歴を開き、そのままキーボードで選べます。</p>
+        <p class="hero-lead">コピーのあとに自分でやっていた一手を、ClingCling が先回りして提案します。内容は Mac の中で見分けます。⌘⇧V でカーソルの横に履歴を開き、そのままキーボードで選べます。</p>
         <div class="cta">
           <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest/download/ClingCling.dmg">ダウンロード</a>
-          <p>macOS 14 以降、Apple シリコン搭載の Mac。押すと dmg のダウンロードが始まります。</p>
+          <p><b>無料・オープンソース。</b>Developer ID で署名し、Apple の公証を受けています。macOS 14 以降、Apple シリコン搭載の Mac。</p>
         </div>
       </div>
 
@@ -63,6 +64,47 @@
 </header>
 
 <main id="main">
+
+<section class="band cases" id="cases">
+  <div class="wrap">
+    <div class="head">
+      <h2>コピーしたあとの手間を、先回りする</h2>
+      <p class="lead">ブラウザに切り替えて貼る。AI を開いて指示を書く。コピーのあとに毎回やっていたその一手を、ClingCling が先に出します。</p>
+    </div>
+
+    <div class="case-grid">
+      <article class="case">
+        <p class="case-kind">URL</p>
+        <h3>URL をコピーしたら、アドレスバーに貼らなくていい。</h3>
+        <p>そのままブラウザで開けます。Markdown のリンクにして、メモに貼ることもできます。</p>
+        <dl class="flow">
+          <div><dt>いままで</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li>ブラウザへ</li><li><kbd>⌘T</kbd></li><li><kbd>⌘V</kbd></li><li><kbd>↩</kbd></li></ol></dd></div>
+          <div class="now"><dt>ClingCling</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li><kbd>⌘⇧V</kbd></li><li><kbd>⌘1</kbd></li></ol></dd></div>
+        </dl>
+      </article>
+
+      <article class="case">
+        <p class="case-kind">エラー</p>
+        <h3>エラーをコピーしたら、次の一手が出てくる。</h3>
+        <p>「説明する」で、いつもの Claude や ChatGPT に指示文を付けて渡します（設定で有効にしたとき）。Web で検索もすぐです。</p>
+        <dl class="flow">
+          <div><dt>いままで</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li>AI を開く</li><li>指示を書く</li><li><kbd>⌘V</kbd></li><li><kbd>↩</kbd></li></ol></dd></div>
+          <div class="now"><dt>ClingCling</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li><kbd>⌘⇧V</kbd></li><li><kbd>⌘1</kbd></li><li>確かめて <kbd>↩</kbd></li></ol></dd></div>
+        </dl>
+      </article>
+
+      <article class="case">
+        <p class="case-kind">API キー</p>
+        <h3>覚えなくていいものは、覚えない。</h3>
+        <p>API キーや認証コードはディスクに書かず、5 分でメモリから消します。パスワードマネージャーからのコピーは受け取りません。見分けるのは形式からなので、すべての秘密を見つけられるわけではありません。<a href="#privacy">届く範囲を見る</a></p>
+        <dl class="flow">
+          <div><dt>いままで</dt><dd>貼ったあとも、履歴に残り続ける</dd></div>
+          <div class="now"><dt>ClingCling</dt><dd>5 分で消える。ディスクには書かない</dd></div>
+        </dl>
+      </article>
+    </div>
+  </div>
+</section>
 
 <section class="band" id="kinds">
   <div class="wrap">

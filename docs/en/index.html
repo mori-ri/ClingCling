@@ -39,14 +39,15 @@
     <div class="hero-grid">
       <div class="hero-copy">
         <h1>
+          <span class="tagline">Beyond copy and paste.</span>
           <button class="say" type="button" aria-pressed="true">URLs open.</button>
           <button class="say" type="button" aria-pressed="false">Errors go to AI.</button>
           <button class="say" type="button" aria-pressed="false">API keys vanish.</button>
         </h1>
-        <p class="hero-lead">ClingCling recognizes what you copied, right on your Mac, and suggests what to do next. Press ⌘⇧V to open your history beside the text cursor and pick from the keyboard.</p>
+        <p class="hero-lead">Whatever you always do right after copying, ClingCling suggests it first. It recognizes what you copied right on your Mac. Press ⌘⇧V to open your history beside the text cursor and pick from the keyboard.</p>
         <div class="cta">
           <a class="download" href="https://github.com/mori-ri/ClingCling/releases/latest/download/ClingCling.dmg">Download</a>
-          <p>macOS 14 or later on a Mac with Apple silicon. Downloads the dmg.</p>
+          <p><b>Free and open source.</b> Signed with Developer ID and notarized by Apple. macOS 14 or later on a Mac with Apple silicon.</p>
         </div>
       </div>
 
@@ -63,6 +64,47 @@
 </header>
 
 <main id="main">
+
+<section class="band cases" id="cases">
+  <div class="wrap">
+    <div class="head">
+      <h2>The step after copying, ready before you reach for it</h2>
+      <p class="lead">Switch to the browser and paste. Open an AI app and type a prompt. ClingCling offers the step you take after every copy.</p>
+    </div>
+
+    <div class="case-grid">
+      <article class="case">
+        <p class="case-kind">URL</p>
+        <h3>Copy a URL. Skip the address bar.</h3>
+        <p>Open it in your browser right away, or turn it into a Markdown link for your notes.</p>
+        <dl class="flow">
+          <div><dt>Before</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li>Go to the browser</li><li><kbd>⌘T</kbd></li><li><kbd>⌘V</kbd></li><li><kbd>↩</kbd></li></ol></dd></div>
+          <div class="now"><dt>ClingCling</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li><kbd>⌘⇧V</kbd></li><li><kbd>⌘1</kbd></li></ol></dd></div>
+        </dl>
+      </article>
+
+      <article class="case">
+        <p class="case-kind">Error</p>
+        <h3>Copy an error. Get the next step.</h3>
+        <p>Explain hands it to Claude or ChatGPT with a prompt, once you turn it on in Settings. Search the Web is right there too.</p>
+        <dl class="flow">
+          <div><dt>Before</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li>Open the AI</li><li>Write a prompt</li><li><kbd>⌘V</kbd></li><li><kbd>↩</kbd></li></ol></dd></div>
+          <div class="now"><dt>ClingCling</dt><dd><ol class="seq"><li><kbd>⌘C</kbd></li><li><kbd>⌘⇧V</kbd></li><li><kbd>⌘1</kbd></li><li>Check, then <kbd>↩</kbd></li></ol></dd></div>
+        </dl>
+      </article>
+
+      <article class="case">
+        <p class="case-kind">API key</p>
+        <h3>What it doesn't need to keep, it doesn't.</h3>
+        <p>API keys and login codes are never written to disk and clear from memory in 5 minutes. Copies from password managers aren't taken at all. Detection works from patterns, so it can't catch every secret. <a href="#privacy">See where things go</a></p>
+        <dl class="flow">
+          <div><dt>Before</dt><dd>Stays in your history after you paste</dd></div>
+          <div class="now"><dt>ClingCling</dt><dd>Gone in 5 minutes, never on disk</dd></div>
+        </dl>
+      </article>
+    </div>
+  </div>
+</section>
 
 <section class="band" id="kinds">
   <div class="wrap">
