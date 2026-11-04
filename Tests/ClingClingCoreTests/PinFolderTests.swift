@@ -120,14 +120,14 @@ struct PinFolderTests {
         #expect(try store.recent(query: "wiki").isEmpty)
     }
 
-    @Test func groupsLooseItemsFirstThenFoldersByName() {
+    @Test func groupsFoldersByNameThenLooseItems() {
         var items = ["a", "b", "c", "d"].map { make($0, retention: .pinned) }
         items[0].folder = "フォルダ 10"
         items[2].folder = "フォルダ 2"
         items[3].folder = "フォルダ 10"
         let groups = PinFolders.group(items)
-        #expect(groups.map { $0.folder } == [nil, "フォルダ 2", "フォルダ 10"])
-        #expect(groups.map { $0.items.map(\.content) } == [["b"], ["c"], ["a", "d"]])
+        #expect(groups.map { $0.folder } == ["フォルダ 2", "フォルダ 10", nil])
+        #expect(groups.map { $0.items.map(\.content) } == [["c"], ["a", "d"], ["b"]])
     }
 
     @Test func filtersFoldersByQuery() {

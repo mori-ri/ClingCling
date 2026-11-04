@@ -74,14 +74,14 @@ final class AppModel: ObservableObject {
         (try? store.recent(limit: 200, query: query, pinnedOnly: pinnedOnly)) ?? []
     }
 
-    /// ピン留めのすべて。履歴の新しい 200 件に入らない古いピン留めも、フォルダから探せるように
-    func pinnedItems() -> [ClipItem] {
-        (try? store.recent(limit: 10_000, pinnedOnly: true)) ?? []
+    /// ピン留めのすべてを、設定で決めた並び順に。履歴の新しい 200 件に入らない古いピン留めも、フォルダから探せるように
+    func pinnedItems(query: String = "") -> [ClipItem] {
+        (try? store.pinned(query: query)) ?? []
     }
 
-    /// ピン留めのフォルダの一覧（名前順）
+    /// ピン留めのフォルダの一覧（設定で決めた順。決めていないものは名前順で後ろに）
     func folders() -> [String] {
-        (try? store.folders()) ?? []
+        PinFolders.ordered((try? store.folders()) ?? [], by: settings.folderOrder)
     }
 
     func actions(for item: ClipItem) -> [SmartAction] {
@@ -103,38 +103,70 @@ final class AppModel: ObservableObject {
         revision += 1
     }
 
+    /// 本文を書き換える。コピーしたときと同じく Privacy Gate で判定し直す。書き換えられなければ理由を返す。
+    func updateContent(_ item: ClipItem, to text: String) -> String? {
+        guard item.isContentEditable, text != item.content else { return nil }
+        switch gate.evaluateEdit(text, of: item, settings: settings.privacySettings) {
+        case .empty:
+            return String(localized: "内容を空にはできません。")
+        case .notSavable:
+            return String(localized: "パスワード・API キー・認証コードを含む内容は保存できません。")
+        case .accepted(let edited):
+            do {
+                guard try store.updateContent(item.id, to: edited) else {
+                    return String(localized: "同じ内容の Item が既にあります。")
+                }
+            } catch {
+                return String(localized: "保存できませんでした。")
+            }
+            revision += 1
+            return nil
+        }
+    }
+
     /// フォルダに入れる（入れたらピン留めになる）。nil ならフォルダから出す。
     func setFolder(_ item: ClipItem, _ folder: String?) {
-        guard !item.isTemporary else { return }
-        try? store.setFolder(item.id, folder)
-        // 畳んだフォルダに入れたら、入れた Item が見えるよう開く
-        if let folder = folder.flatMap(PinFolders.normalizedFolder) {
-            let collapsed = settings.collapsedFolders.filter { PinFolders.existing($0, in: [folder]) == nil }
-            if collapsed != settings.collapsedFolders { settings.collapsedFolders = collapsed }
-        }
+        setFolder([item], folder)
+    }
+
+    /// まとめてフォルダに入れる・出す
+    func setFolder(_ items: [ClipItem], _ folder: String?) {
+        for item in items where !item.isTemporary { try? store.setFolder(item.id, folder) }
         revision += 1
     }
 
     /// フォルダの名前を変える。同じ名前のフォルダがあれば 1 つにまとめる。
     func renameFolder(_ old: String, to new: String) {
         guard let name = try? store.renameFolder(old, to: new) else { return }
-        // 畳んでいたら、新しい名前でも畳んだままにする
-        if settings.collapsedFolders.remove(old) != nil { settings.collapsedFolders.insert(name) }
+        // 並び順も引き継ぐ
+        settings.folderOrder = PinFolders.renamed(settings.folderOrder, from: old, to: name)
+        settings.openFolders = PinFolders.renamed(settings.openFolders, from: old, to: name)
         revision += 1
     }
 
-    /// 中の Item がなくなって消えたフォルダを、畳んだフォルダの記録から外す。
-    /// 残すと、後で同じ名前のフォルダを作ったときに畳まれた状態で出てしまう。
-    func forgetMissingFolders() {
-        guard !settings.collapsedFolders.isEmpty else { return }
-        let kept = settings.collapsedFolders.intersection(folders())
-        if kept != settings.collapsedFolders { settings.collapsedFolders = kept }
+    /// ピン留めを並べ替える。`items` を `target` の前（nil なら `visible` の最後の後ろ）へ。
+    /// `visible` は今見えている一覧（フォルダの中など）。
+    func movePinned(_ items: [ClipItem], visible: [ClipItem], before target: ClipItem?) {
+        let all = pinnedItems().map(\.id)
+        let moved = PinFolders.move(items.map(\.id), in: all, visible: visible.map(\.id), before: target?.id)
+        guard moved != all else { return }
+        try? store.setPinOrder(moved)
+        revision += 1
+    }
+
+    /// フォルダを並べ替える。`shown` は画面に並べている順（まだ Item の無いフォルダも含む）
+    func moveFolders(_ folders: [String], in shown: [String], before target: String?) {
+        let moved = PinFolders.move(folders, in: shown, visible: shown, before: target)
+        guard moved != shown else { return }
+        settings.folderOrder = moved
+        revision += 1
     }
 
     /// フォルダを解除する（中の Item はピン留めのまま）
     func removeFolder(_ name: String) {
         try? store.removeFolder(name)
-        settings.collapsedFolders.remove(name)
+        settings.folderOrder.removeAll { $0 == name }
+        settings.openFolders.removeAll { $0 == name }
         revision += 1
     }
 

@@ -33,15 +33,50 @@ public enum PinFolders {
         Set(folders).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    /// ピン留めの Item をフォルダごとに分ける。フォルダに入っていないものが先、続いてフォルダの名前順。
-    /// 各グループの中は渡された順のまま。
-    public static func group(_ items: [ClipItem]) -> [(folder: String?, items: [ClipItem])] {
-        let loose = items.filter { $0.folder == nil }
-        var groups: [(folder: String?, items: [ClipItem])] = loose.isEmpty ? [] : [(nil, loose)]
-        for folder in sorted(items.compactMap(\.folder)) {
-            groups.append((folder, items.filter { $0.folder == folder }))
+    /// フォルダを、ユーザーが決めた順（`order`）に並べる。`order` に無いフォルダは後ろに名前順で続ける。
+    public static func ordered(_ folders: some Sequence<String>, by order: [String]) -> [String] {
+        let names = sorted(folders)
+        let known = order.filter { names.contains($0) }
+        return known + names.filter { !known.contains($0) }
+    }
+
+    /// ピン留めの Item をフォルダごとに分ける。Finder と同じくフォルダが先（`order` の順、`ordered(_:by:)`）、
+    /// 続いてフォルダに入っていないもの。各グループの中は渡された順のまま。
+    public static func group(_ items: [ClipItem], folderOrder order: [String] = []) -> [(folder: String?, items: [ClipItem])] {
+        var groups: [(folder: String?, items: [ClipItem])] = ordered(items.compactMap(\.folder), by: order).map { folder in
+            (folder, items.filter { $0.folder == folder })
         }
+        let loose = items.filter { $0.folder == nil }
+        if !loose.isEmpty { groups.append((nil, loose)) }
         return groups
+    }
+
+    /// 並べ替え。`all` の中の `moving` を、`target` の前（nil なら見えている一覧 `visible` の最後の後ろ）へまとめて動かす。
+    /// `visible` は `all` の一部を同じ順で並べたもの（フォルダの中など）。動かすものどうしの順は保つ。
+    /// フォルダの中で動かしても、ほかのフォルダの並びは変えない。
+    public static func move<ID: Equatable>(_ moving: [ID], in all: [ID], visible: [ID], before target: ID?) -> [ID] {
+        let moving = all.filter { moving.contains($0) }
+        guard !moving.isEmpty else { return all }
+        if let target, moving.contains(target) { return all }
+        var result = all.filter { !moving.contains($0) }
+        let position: Int
+        if let target {
+            guard let index = result.firstIndex(of: target) else { return all }
+            position = index
+        } else if let last = visible.last(where: { !moving.contains($0) }), let index = result.firstIndex(of: last) {
+            position = index + 1
+        } else {
+            return all
+        }
+        result.insert(contentsOf: moving, at: position)
+        return result
+    }
+
+    /// 並び順のフォルダ名を変える。変えた先の名前が既に並んでいれば（1 つにまとめたとき）、元の位置を外す。
+    public static func renamed(_ order: [String], from old: String, to new: String) -> [String] {
+        guard order.contains(old) else { return order }
+        if order.contains(new) { return order.filter { $0 != old } }
+        return order.map { $0 == old ? new : $0 }
     }
 
     /// `query` に一致するフォルダ（`SearchQuery` と同じく、大文字小文字・全角半角・かなの違いを無視）
@@ -58,5 +93,13 @@ public enum PinFolders {
     public static func existing(_ name: String, in folders: [String]) -> String? {
         let key = SearchQuery.normalize(name)
         return folders.first { SearchQuery.normalize($0) == key }
+    }
+}
+
+extension ClipItem {
+    /// 本文を書き換えられるか。テキストの Item だけ（画像・ファイルは中身を書き換えられない）。
+    /// 伏せて表示する Item（Secret・ランダムな文字列を含むもの）は、編集欄で本文が読めてしまうので書き換えさせない。
+    public var isContentEditable: Bool {
+        !isTemporary && !isImage && !isFile && sensitivity < .suspicious
     }
 }

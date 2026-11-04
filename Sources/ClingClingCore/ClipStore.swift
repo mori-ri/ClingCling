@@ -83,7 +83,8 @@ public final class ClipStore: ActionStatsProvider {
             image_height INTEGER,
             image_text TEXT,
             title TEXT,
-            folder TEXT
+            folder TEXT,
+            pin_order REAL
         );
         CREATE INDEX IF NOT EXISTS clips_last_copied ON clips(last_copied_at DESC);
         CREATE TABLE IF NOT EXISTS action_stats (
@@ -115,6 +116,13 @@ public final class ClipStore: ActionStatsProvider {
         }
         if !columns.contains("folder") {
             try exec("ALTER TABLE clips ADD COLUMN folder TEXT;")
+        }
+        // ピン留めの並び順の列が無い古い DB に足す。今までと同じく、新しくコピーした順に並べておく
+        if !columns.contains("pin_order") {
+            try exec("""
+                ALTER TABLE clips ADD COLUMN pin_order REAL;
+                UPDATE clips SET pin_order = -last_copied_at WHERE retention = 'pinned';
+                """)
         }
     }
 
@@ -180,6 +188,7 @@ public final class ClipStore: ActionStatsProvider {
                   item.sensitivity.rawValue, item.retention.rawValue, item.copyCount, item.externalAllowed ? 1 : 0,
                   item.reasons.joined(separator: "\n"), item.image?.fileName, item.image?.width, item.image?.height,
                   item.image?.text, item.title, item.isPinned ? item.folder : nil])
+        if item.isPinned { try pin(item.id) }
         return item
     }
 
@@ -236,11 +245,60 @@ public final class ClipStore: ActionStatsProvider {
     public func setPinned(_ id: UUID, _ pinned: Bool) throws {
         // 一時 Item は Pin できない（Secret を永続化させないため）。DB に無いので UPDATE は何も変えない
         if pinned {
-            try run("UPDATE clips SET retention = ? WHERE id = ?", [Retention.pinned.rawValue, id.uuidString])
+            try pin(id)
         } else {
-            // ピン留めを外したらフォルダからも出す（別名は残す）
-            try run("UPDATE clips SET retention = ?, folder = NULL WHERE id = ?", [Retention.normal.rawValue, id.uuidString])
+            // ピン留めを外したらフォルダと並び順からも外す（別名は残す）
+            try run("UPDATE clips SET retention = ?, folder = NULL, pin_order = NULL WHERE id = ?",
+                    [Retention.normal.rawValue, id.uuidString])
         }
+    }
+
+    /// ピン留めにする。新しいピン留めは先頭に並べる（既にピン留めなら並び順は変えない）。
+    private func pin(_ id: UUID) throws {
+        try run("""
+            UPDATE clips SET retention = ?,
+            pin_order = COALESCE(pin_order, (SELECT COALESCE(MIN(pin_order), 0) - 1 FROM clips WHERE retention = 'pinned'))
+            WHERE id = ?
+            """, [Retention.pinned.rawValue, id.uuidString])
+    }
+
+    /// ピン留めを並び順に。`query` は `recent` と同じ。
+    public func pinned(query: String = "") throws -> [ClipItem] {
+        let items = try fetch(where: "retention = 'pinned' ORDER BY pin_order ASC, last_copied_at DESC", [])
+        let search = SearchQuery(query)
+        return search.isEmpty ? items : items.filter { matches(search, $0) }
+    }
+
+    /// ピン留めの並び順を、渡した順にする。含まれないピン留めはその後ろに今の順で続ける。
+    public func setPinOrder(_ ids: [UUID]) throws {
+        let rest = try pinned().map(\.id).filter { !ids.contains($0) }
+        try exec("BEGIN")
+        do {
+            for (index, id) in (ids + rest).enumerated() {
+                try run("UPDATE clips SET pin_order = ? WHERE id = ? AND retention = 'pinned'", [Double(index), id.uuidString])
+            }
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// 本文を書き換える。`edited` は `PrivacyGate.evaluateEdit` で判定し直したもの（本文・分類・機密度などを使う）。
+    /// 書き換えられるのは `isContentEditable` な Item だけ。同じ内容の Item が既にあれば書き換えずに false を返す。
+    @discardableResult
+    public func updateContent(_ id: UUID, to edited: ClipItem) throws -> Bool {
+        guard let current = try fetch(where: "id = ?", [id.uuidString]).first, current.isContentEditable,
+              !edited.isTemporary
+        else { return false }
+        guard edited.contentHash != current.contentHash else { return true }
+        if try !fetch(where: "content_hash = ?", [edited.contentHash]).isEmpty { return false }
+        try run("""
+            UPDATE clips SET content = ?, content_hash = ?, content_type = ?, sensitivity = ?, external_allowed = ?,
+            reasons = ? WHERE id = ?
+            """, [edited.content, edited.contentHash, edited.contentType.rawValue, edited.sensitivity.rawValue,
+                  edited.externalAllowed ? 1 : 0, edited.reasons.joined(separator: "\n"), id.uuidString])
+        return true
     }
 
     // MARK: - Titles and folders
@@ -249,7 +307,8 @@ public final class ClipStore: ActionStatsProvider {
     /// 一時 Item は DB に無いので何も変わらない。
     public func setTitle(_ id: UUID, _ title: String?) throws {
         if let title = title.flatMap(PinFolders.normalizedTitle) {
-            try run("UPDATE clips SET title = ?, retention = ? WHERE id = ?", [title, Retention.pinned.rawValue, id.uuidString])
+            try run("UPDATE clips SET title = ? WHERE id = ?", [title, id.uuidString])
+            try pin(id)
         } else {
             try run("UPDATE clips SET title = NULL WHERE id = ?", [id.uuidString])
         }
@@ -260,7 +319,8 @@ public final class ClipStore: ActionStatsProvider {
     public func setFolder(_ id: UUID, _ folder: String?) throws {
         if let folder = folder.flatMap(PinFolders.normalizedFolder) {
             let name = try PinFolders.existing(folder, in: folders()) ?? folder
-            try run("UPDATE clips SET folder = ?, retention = ? WHERE id = ?", [name, Retention.pinned.rawValue, id.uuidString])
+            try run("UPDATE clips SET folder = ? WHERE id = ? AND retention != 'temporary'", [name, id.uuidString])
+            try pin(id)
         } else {
             try run("UPDATE clips SET folder = NULL WHERE id = ?", [id.uuidString])
         }

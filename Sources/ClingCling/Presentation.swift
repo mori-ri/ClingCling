@@ -45,6 +45,25 @@ enum Presentation {
         }
     }
 
+    /// 設定のピン留めの一覧の「種類」の列
+    static func kindName(_ item: ClipItem) -> String {
+        switch item.contentType {
+        case .text: String(localized: "テキスト")
+        case .url: String(localized: "リンク")
+        case .code: String(localized: "コード")
+        case .command: String(localized: "コマンド")
+        case .error: String(localized: "エラー")
+        case .email: String(localized: "メールアドレス")
+        case .address: String(localized: "住所")
+        case .json: String(localized: "JSON") // no-l10n
+        case .credential: String(localized: "認証情報")
+        case .verificationCode: String(localized: "認証コード")
+        case .image: String(localized: "画像")
+        case .file: String(localized: "ファイル")
+        case .other: String(localized: "その他")
+        }
+    }
+
     static func isMonospaced(_ type: ContentType) -> Bool {
         [.code, .command, .json, .error, .credential].contains(type)
     }
