@@ -74,6 +74,16 @@ final class AppModel: ObservableObject {
         (try? store.recent(limit: 200, query: query, pinnedOnly: pinnedOnly)) ?? []
     }
 
+    /// ピン留めのすべて。履歴の新しい 200 件に入らない古いピン留めも、フォルダから探せるように
+    func pinnedItems() -> [ClipItem] {
+        (try? store.recent(limit: 10_000, pinnedOnly: true)) ?? []
+    }
+
+    /// ピン留めのフォルダの一覧（名前順）
+    func folders() -> [String] {
+        (try? store.folders()) ?? []
+    }
+
     func actions(for item: ClipItem) -> [SmartAction] {
         ranker.rank(item, stats: store)
     }
@@ -83,6 +93,41 @@ final class AppModel: ObservableObject {
     func togglePin(_ item: ClipItem) {
         guard !item.isTemporary else { return }
         try? store.setPinned(item.id, !item.isPinned)
+        revision += 1
+    }
+
+    /// 別名を付ける（付けたらピン留めになる）。空なら別名を外す。
+    func setTitle(_ item: ClipItem, _ title: String) {
+        guard !item.isTemporary else { return }
+        try? store.setTitle(item.id, title)
+        revision += 1
+    }
+
+    /// フォルダに入れる（入れたらピン留めになる）。nil ならフォルダから出す。
+    func setFolder(_ item: ClipItem, _ folder: String?) {
+        guard !item.isTemporary else { return }
+        try? store.setFolder(item.id, folder)
+        // 畳んだフォルダに入れたら、入れた Item が見えるよう開く
+        if let folder = folder.flatMap(PinFolders.normalizedFolder) {
+            let key = SearchQuery.normalize(folder)
+            let collapsed = settings.collapsedFolders.filter { SearchQuery.normalize($0) != key }
+            if collapsed != settings.collapsedFolders { settings.collapsedFolders = collapsed }
+        }
+        revision += 1
+    }
+
+    /// フォルダの名前を変える。同じ名前のフォルダがあれば 1 つにまとめる。
+    func renameFolder(_ old: String, to new: String) {
+        guard let name = try? store.renameFolder(old, to: new) else { return }
+        // 畳んでいたら、新しい名前でも畳んだままにする
+        if settings.collapsedFolders.remove(old) != nil { settings.collapsedFolders.insert(name) }
+        revision += 1
+    }
+
+    /// フォルダを解除する（中の Item はピン留めのまま）
+    func removeFolder(_ name: String) {
+        try? store.removeFolder(name)
+        settings.collapsedFolders.remove(name)
         revision += 1
     }
 

@@ -14,6 +14,48 @@ final class PopupViewModel: ObservableObject {
         /// AI に渡す前の確認
         case confirmAI(AIRequest)
         case result(title: String, text: String)
+        /// 別名の入力
+        case rename(ClipItem)
+        /// 入れるフォルダの選択
+        case chooseFolder(ClipItem)
+        /// フォルダ名の変更（今の名前）
+        case renameFolder(String)
+    }
+
+    /// 一覧の区切り。通常時は ピン留め（フォルダの外）→ フォルダごと → 履歴 の順、検索中は 1 つだけ。
+    struct ListSection: Identifiable {
+        enum Kind: Hashable {
+            /// フォルダに入っていないピン留め。フォルダだけのときも、ピン留めの見出しとして出す
+            case pinned
+            case folder(String)
+            case recent
+        }
+
+        let kind: Kind
+        /// 見出しを出すか（検索中と、ピン留めが無いときの履歴は出さない）
+        let showsHeader: Bool
+        /// 中の Item の数（畳んでいても数える）
+        let count: Int
+        let isCollapsed: Bool
+        /// 一覧に出す行。畳んでいれば空
+        let rows: [Row]
+        /// `rows` の先頭の行の、一覧全体（`PopupViewModel.rows`）での位置
+        let start: Int
+        var id: Kind { kind }
+
+        var isFolder: Bool {
+            if case .folder = kind { return true }
+            return false
+        }
+    }
+
+    /// フォルダの選択画面の候補
+    enum FolderOption: Hashable {
+        case existing(String)
+        /// 入力した名前で新しく作る
+        case create(String)
+        /// フォルダから出す（ピン留めは残す）
+        case remove
     }
 
     struct Row: Identifiable {
@@ -37,6 +79,10 @@ final class PopupViewModel: ObservableObject {
         /// 「ダウンロード」にファイルで保存（⌘S）
         case save
         case pin(isPinned: Bool)
+        /// 別名を付ける・変える（⌘R）
+        case rename(hasTitle: Bool)
+        /// フォルダに入れる・移す
+        case folder(inFolder: Bool)
         case delete
 
         var group: Int {
@@ -44,7 +90,7 @@ final class PopupViewModel: ObservableObject {
             case .paste: 0
             case .smart: 1
             case .custom: 2
-            case .save, .pin, .delete: 3
+            case .save, .pin, .rename, .folder, .delete: 3
             }
         }
 
@@ -59,9 +105,9 @@ final class PopupViewModel: ObservableObject {
     }
 
     @Published var query = "" { didSet { reload(resetSelection: true) } }
+    /// 一覧に出している行（畳んだフォルダの中は含まない）。`selection` はこの中の位置
     @Published private(set) var rows: [Row] = []
-    /// `rows` の先頭からこの件数がピン留め（検索中は 0）
-    @Published private(set) var pinnedCount = 0
+    @Published private(set) var sections: [ListSection] = []
     @Published var selection = 0 {
         didSet {
             selectedByPointer = false
@@ -94,6 +140,12 @@ final class PopupViewModel: ObservableObject {
     @Published var actionIndex = 0
     /// 確認画面で選んでいる AI の送り先
     @Published var destinationID: UUID?
+    /// 別名・フォルダ名の入力欄。フォルダの選択画面では候補の絞り込みにも使う
+    @Published var draft = "" { didSet { if draft != oldValue { folderIndex = 0 } } }
+    /// フォルダの選択画面で選んでいる候補
+    @Published var folderIndex = 0
+    /// フォルダの選択画面を開いたときのフォルダの一覧
+    private var knownFolders: [String] = []
 
     struct Preview: Equatable {
         let item: ClipItem
@@ -129,16 +181,43 @@ final class PopupViewModel: ObservableObject {
     }
 
     func reload(resetSelection: Bool) {
+        let selectedID = selectedRow?.id
         let items = model.items(query: query, pinnedOnly: false)
-        // 検索中は区切らず新しい順、通常時はピン留めを上にまとめる
-        let pinned = query.isEmpty ? items.filter(\.isPinned) : []
-        let recent = query.isEmpty ? items.filter { !$0.isPinned } : items
-        pinnedCount = pinned.count
-        rows = pinned.map { Row(item: $0, actions: model.actions(for: $0), number: nil) }
-            + recent.enumerated().map { index, item in
-                Row(item: item, actions: model.actions(for: item), number: index < 9 ? index + 1 : nil)
+        var built: [ListSection] = []
+        var start = 0
+        func add(_ kind: ListSection.Kind, _ items: [ClipItem], header: Bool, collapsed: Bool = false, numbered: Bool = false) {
+            let rows: [Row] = collapsed ? [] : items.enumerated().map { index, item in
+                Row(item: item, actions: model.actions(for: item), number: numbered && index < 9 ? index + 1 : nil)
             }
-        if resetSelection { selection = 0 }
+            built.append(ListSection(kind: kind, showsHeader: header, count: items.count, isCollapsed: collapsed,
+                                 rows: rows, start: start))
+            start += rows.count
+        }
+        if query.isEmpty {
+            // 通常時はピン留めを上に、フォルダごとにまとめる
+            let groups = PinFolders.group(model.pinnedItems())
+            if !groups.isEmpty {
+                add(.pinned, groups.first { $0.folder == nil }?.items ?? [], header: true)
+                for group in groups {
+                    guard let folder = group.folder else { continue }
+                    add(.folder(folder), group.items, header: true,
+                        collapsed: model.settings.collapsedFolders.contains(folder))
+                }
+            }
+            let recent = items.filter { !$0.isPinned }
+            if !recent.isEmpty { add(.recent, recent, header: !groups.isEmpty, numbered: true) }
+        } else if !items.isEmpty {
+            // 検索中は区切らず新しい順
+            add(.recent, items, header: false, numbered: true)
+        }
+        sections = built
+        rows = built.flatMap(\.rows)
+        // 新しくコピーした Item やピン留めで行が動いても、同じ Item を選んだままにする
+        if resetSelection {
+            selection = 0
+        } else if let selectedID, let index = rows.firstIndex(where: { $0.id == selectedID }) {
+            selection = index
+        }
         selection = min(selection, max(rows.count - 1, 0))
         if rows.isEmpty { actionsOpen = false }
         // 削除などで行が消えたらプレビューも閉じる
@@ -146,6 +225,13 @@ final class PopupViewModel: ObservableObject {
     }
 
     var selectedRow: Row? { rows.indices.contains(selection) ? rows[selection] : nil }
+
+    /// フォルダを畳む・開く
+    func toggleFolder(_ name: String) {
+        if model.settings.collapsedFolders.remove(name) == nil { model.settings.collapsedFolders.insert(name) }
+        actionsOpen = false
+        reload(resetSelection: false)
+    }
 
     // MARK: - Preview
 
@@ -202,7 +288,11 @@ final class PopupViewModel: ObservableObject {
         entries += customActions(for: row.item).enumerated().map { .custom($1, shortcut: $0 < 6 ? $0 + 4 : nil) }
         // 画像は Smart Action の「ダウンロードに保存」が並ぶので重ねない
         if ExportFile.canExport(row.item) && !row.smartActions.contains(.saveImage) { entries.append(.save) }
-        if !row.item.isTemporary { entries.append(.pin(isPinned: row.item.isPinned)) }
+        if !row.item.isTemporary {
+            entries.append(.pin(isPinned: row.item.isPinned))
+            entries.append(.rename(hasTitle: row.item.title != nil))
+            entries.append(.folder(inFolder: row.item.folder != nil))
+        }
         entries.append(.delete)
         return entries
     }
@@ -246,6 +336,8 @@ final class PopupViewModel: ObservableObject {
         case .custom(let custom, _): startAI(AIHandoff.request(for: custom, item: row.item))
         case .save: saveSelected()
         case .pin: togglePinSelected()
+        case .rename: startRename()
+        case .folder: startChooseFolder()
         case .delete: deleteSelected()
         }
     }
@@ -465,6 +557,90 @@ final class PopupViewModel: ObservableObject {
         model.delete(row.item)
     }
 
+    // MARK: - Titles and folders
+
+    /// 選択中の Item に別名を付ける画面を開く（⌘R）
+    func startRename() {
+        guard let row = selectedRow else { return }
+        guard !row.item.isTemporary else {
+            notice = String(localized: "Sensitive な一時 Item には別名を付けられません。")
+            return
+        }
+        notice = nil
+        actionsOpen = false
+        draft = row.item.title ?? ""
+        mode = .rename(row.item)
+    }
+
+    /// 選択中の Item を入れるフォルダを選ぶ画面を開く
+    func startChooseFolder() {
+        guard let row = selectedRow, !row.item.isTemporary else { return }
+        notice = nil
+        actionsOpen = false
+        knownFolders = model.folders()
+        draft = ""
+        folderIndex = 0
+        mode = .chooseFolder(row.item)
+    }
+
+    /// フォルダの名前を変える画面を開く
+    func startRenameFolder(_ name: String) {
+        notice = nil
+        actionsOpen = false
+        draft = name
+        mode = .renameFolder(name)
+    }
+
+    /// フォルダを解除する。中の Item はピン留めのまま残る。
+    func removeFolder(_ name: String) {
+        model.removeFolder(name)
+    }
+
+    /// フォルダの選択画面の候補。入力した文字で絞り込み、どれとも同じでなければ新しく作る候補を足す。
+    func folderOptions(for item: ClipItem) -> [FolderOption] {
+        var options = PinFolders.filter(knownFolders.filter { $0 != item.folder }, query: draft).map(FolderOption.existing)
+        if let name = PinFolders.normalizedFolder(draft) {
+            if PinFolders.existing(name, in: knownFolders) == nil { options.append(.create(name)) }
+        } else if item.folder != nil {
+            options.append(.remove)
+        }
+        return options
+    }
+
+    func moveFolderIndex(_ delta: Int) {
+        guard case .chooseFolder(let item) = mode else { return }
+        let count = folderOptions(for: item).count
+        folderIndex = max(0, min(count - 1, folderIndex + delta))
+    }
+
+    func chooseFolderOption(_ option: FolderOption) {
+        guard case .chooseFolder(let item) = mode else { return }
+        switch option {
+        case .existing(let name), .create(let name): model.setFolder(item, name)
+        case .remove: model.setFolder(item, nil)
+        }
+        mode = .list
+    }
+
+    /// 入力の画面で ↩ を押した・保存を選んだ
+    func commitEdit() {
+        switch mode {
+        case .rename(let item):
+            model.setTitle(item, draft)
+            mode = .list
+        case .chooseFolder(let item):
+            let options = folderOptions(for: item)
+            guard options.indices.contains(folderIndex) else { return }
+            chooseFolderOption(options[folderIndex])
+        case .renameFolder(let name):
+            guard PinFolders.normalizedFolder(draft) != nil else { return }
+            model.renameFolder(name, to: draft)
+            mode = .list
+        default:
+            break
+        }
+    }
+
     // MARK: - Keyboard
 
     /// NSEvent の keyDown を処理する。処理したら true。
@@ -516,6 +692,10 @@ final class PopupViewModel: ObservableObject {
                 saveSelected()
                 return true
             }
+            if cmd, key == "r" {
+                startRename()
+                return true
+            }
             if cmd, key == "," {
                 openSettings()
                 return true
@@ -546,6 +726,21 @@ final class PopupViewModel: ObservableObject {
             default:
                 if cmd, key == "c" { copyResult(); return true }
                 return false
+            }
+
+        case .rename, .chooseFolder, .renameFolder:
+            switch event.keyCode {
+            case 36, 76: commitEdit(); return true
+            case 53: back(); return true
+            case 125: // ↓
+                guard case .chooseFolder = mode else { return false }
+                moveFolderIndex(1)
+                return true
+            case 126: // ↑
+                guard case .chooseFolder = mode else { return false }
+                moveFolderIndex(-1)
+                return true
+            default: return false
             }
         }
     }

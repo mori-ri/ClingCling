@@ -107,6 +107,10 @@ public struct ClipItem: Identifiable, Hashable, Sendable {
     public var reasons: [String]
     /// 画像 Item のときだけ値がある
     public var image: ClipImage?
+    /// ユーザーが付けた別名。一覧には本文の代わりにこれを出す（貼り付けるのは本文）
+    public var title: String?
+    /// ピン留めを入れたフォルダ。ピン留めしていない Item は nil
+    public var folder: String?
 
     public init(
         id: UUID = UUID(),
@@ -122,7 +126,9 @@ public struct ClipItem: Identifiable, Hashable, Sendable {
         externalAllowed: Bool,
         expiresAt: Date?,
         reasons: [String],
-        image: ClipImage? = nil
+        image: ClipImage? = nil,
+        title: String? = nil,
+        folder: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -138,6 +144,8 @@ public struct ClipItem: Identifiable, Hashable, Sendable {
         self.expiresAt = expiresAt
         self.reasons = reasons
         self.image = image
+        self.title = title
+        self.folder = folder
     }
 
     public var isPinned: Bool { retention == .pinned }
