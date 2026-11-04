@@ -126,7 +126,8 @@ struct PopupView: View {
                 .scrollIndicators(.automatic)
                 .frame(height: listHeight)
                 .onChange(of: vm.selection) { _, newValue in
-                    guard vm.rows.indices.contains(newValue) else { return }
+                    // マウスで選んだ行は見えている。端の行で動かすと、スクロールして別の行が下に来てしまう。
+                    guard !vm.selectedByPointer, vm.rows.indices.contains(newValue) else { return }
                     proxy.scrollTo(vm.rows[newValue].id)
                 }
             }
@@ -162,8 +163,15 @@ struct PopupView: View {
                 vm.selection = index
                 vm.paste(row.item)
             }
-            .onHover { inside in
-                if inside { vm.hoveredID = row.id } else if vm.hoveredID == row.id { vm.hoveredID = nil }
+            // マウスを載せた行を選ぶ。動くたびに呼ばれるので、変わったときだけ書き込む。
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    if vm.hoveredID != row.id { vm.hoveredID = row.id }
+                    vm.pointerMoved(over: index)
+                case .ended:
+                    if vm.hoveredID == row.id { vm.hoveredID = nil }
+                }
             }
     }
 
@@ -319,7 +327,8 @@ struct ClipRow: View {
                     .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
             }
 
-            if selected {
+            // 選択中の行と、マウスを載せた行（アクションメニューを開いている間など）に出す
+            if selected || hovered {
                 Button(action: onOpenActions) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
@@ -327,7 +336,7 @@ struct ClipRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(.secondary))
                 .help("アクション（→）")
                 .accessibilityLabel("アクション")
             } else if let number = row.number {
