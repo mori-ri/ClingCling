@@ -35,7 +35,11 @@ Without a signing certificate the app is ad-hoc signed, and you need to grant th
 - ClingCling stays in the menu bar. Copying shows no notification.
 - **⌘⇧V** (change it in Settings › General) opens the popup next to the text cursor. Where the cursor position isn't available it opens at the mouse. Finding the cursor needs the Accessibility permission.
   - Type to filter (case, full/half width and hiragana/katakana are ignored; spaces mean AND) / `↑↓` select / `↩` or click to paste / `1–9` paste the nth item (when the search field is empty)
-  - `→` action menu / `⌘1–3` Smart Actions / `⌘4–9` your own AI Actions / `⌘S` save to Downloads / `⌘P` pin / `⌘⌫` delete / `esc` close
+  - `→` action menu / `⌘1–3` Smart Actions / `⌘4–9` your own AI Actions / `⌘S` save to Downloads / `⌘P` pin / `⌘R` rename / `⌘⌫` delete / `esc` close
+- **Organize pinned items**: pinned items gather at the top of the list and are kept regardless of the history limits
+  - **Names**: "Rename" in the action menu, or `⌘R`, gives an item a name. The list shows the name instead of the content (the content follows it, dimmed). Pasting still uses the original content. Clear the name to remove it.
+  - **Folders**: "Add to Folder" in the action menu lets you pick a folder or type a name to create one. The list groups pinned items by folder; click a folder's heading to collapse or expand it. Use the heading's `…` button or right-click it to rename the folder (folders with the same name are merged) or remove it (its items stay pinned).
+  - Naming an item or adding it to a folder pins it. Unpinning takes it out of its folder (the name stays). Search also matches names and folder names. Temporary items that never reach the disk (passwords, API keys, verification codes) can't be named or added to folders.
 - **Save as a file**: "Save to Downloads" in the action menu, or `⌘S`, writes the selected item to Downloads and shows it in Finder (text as UTF-8 `.txt`, JSON as `.json`, images as `.png`, named "ClingCling <copy date and time>"). Temporary items that never reach the disk (passwords, API keys, verification codes) can't be saved.
 - **Hover over a row** to see the full text in a card, along with when and in which app you copied it. Long text scrolls inside the card (up to the first 20,000 characters). Secrets stay masked, as in the list.
 - **Images** (screenshots, images copied from Preview or the web) stay in the history too, with thumbnails and a larger preview on hover. `↩` pastes the image; "Save to Downloads" writes a PNG.
@@ -89,6 +93,7 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # write the popup to a 
 | `ClingClingCore/FileKind` | The kind of a copied file (from its extension and whether it's a folder only; the content isn't read) |
 | `ClingClingCore/ActionRanker` | Builds candidates from the type and source app, and ranks up to three using local usage statistics |
 | `ClingClingCore/ClipStore` | SQLite (`~/Library/Application Support/ClingCling`, 0600). Image files are `images/<hash>.png` in the same place (0600, removed with their row); text read from images is in the database. Deduplication, retention, action statistics |
+| `ClingClingCore/PinFolders` | Names and folders for pinned items (cleaning up names, grouping by folder, matching folders with the same name) |
 | `ClingClingCore/UpdateChecker`, `ReleaseNotes` | Checking for new versions (GitHub's release list) and laying out release notes for the What's New page |
 | `ClingCling/*` | Menu bar, clipboard monitoring, reading text in images (`TextRecognizer`, Vision), global shortcut (Carbon HotKey), popup, action execution, AI handoff (`AIHandoff`), settings, What's New |
 

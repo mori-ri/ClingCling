@@ -91,6 +91,16 @@ public enum GateDecision: Sendable, Equatable {
     case capture(ClipItem)
 }
 
+/// ピン留めの本文を書き換えたときの判定（`PrivacyGate.evaluateEdit`）
+public enum ContentEdit: Sendable, Equatable {
+    /// 書き換えてよい。分類・機密度・外部送信可否は新しい本文で判定し直したもの
+    case accepted(ClipItem)
+    /// 空白だけ
+    case empty
+    /// ディスクに保存しない内容（パスワード・API キー・認証コード）か、取り込まない設定のアプリの Item
+    case notSavable
+}
+
 /// Clipboard 処理の最前段。完全にローカルで動作する。
 ///
 /// 原則: 「Secret だと判定したら止める」のではなく
@@ -194,6 +204,19 @@ public struct PrivacyGate: Sendable {
             reasons: reasons
         )
         return .capture(item)
+    }
+
+    /// ピン留めの本文を書き換えたときの判定。コピーしたときと同じ規則で分類し直す。
+    /// コピー元のアプリはそのまま引き継ぐ（Local Only のアプリから来た Item は外部送信できないまま）。
+    public func evaluateEdit(_ text: String, of item: ClipItem, settings: PrivacySettings, date: Date = Date()) -> ContentEdit {
+        let input = CaptureInput(text: text, pasteboardTypes: [], source: item.source, date: date)
+        switch evaluate(input, settings: settings) {
+        case .drop(let reason):
+            return reason == "empty" ? .empty : .notSavable
+        case .capture(let edited):
+            // ディスクに書かない内容（パスワード・API キー・認証コード）はピン留めにできない
+            return edited.isTemporary ? .notSavable : .accepted(edited)
+        }
     }
 
     /// 画像は写っている文字だけを検査する（OCR はアプリ側で Vision が行い、`recognizedText` で渡される）。

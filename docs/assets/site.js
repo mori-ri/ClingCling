@@ -360,9 +360,12 @@
       parts.push('<div class="pop-rule"></div>');
     }
     let n = smart.length + 1;
-    // PopupViewModel.menuEntries と同じく、ディスクに書かない一時 Item には保存とピン留めを出さない
-    if (!item.temporary) parts.push(row({ icon: "save", title: T.save, key: "⌘S" }, n++));
-    if (!item.temporary) parts.push(row({ icon: "pin", title: T.pin, key: "⌘P" }, n++));
+    // PopupViewModel.menuEntries と同じく、ディスクに書かない一時 Item には保存・ピン留めを出さない
+    // （見本の Item はピン留めしていないので、「設定で整理…」も出ない）
+    if (!item.temporary) {
+      parts.push(row({ icon: "save", title: T.save, key: "⌘S" }, n++));
+      parts.push(row({ icon: "pin", title: T.pin, key: "⌘P" }, n++));
+    }
     parts.push(row({ icon: "trash", title: T.del, key: "⌘⌫" }, n));
     return parts.join("");
   };

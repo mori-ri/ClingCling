@@ -5,6 +5,7 @@ import SwiftUI
 
 enum SettingsPageID: String, CaseIterable, Identifiable {
     case general
+    case pinned
     case ai
     case privacy
     case applications
@@ -15,6 +16,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
     var title: LocalizedStringKey {
         switch self {
         case .general: "一般"
+        case .pinned: "ピン留め"
         case .ai: "AI"
         case .privacy: "プライバシー"
         case .applications: "アプリ別"
@@ -25,6 +27,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
     var subtitle: LocalizedStringKey {
         switch self {
         case .general: "起動、言語、貼り付け、履歴の保存"
+        case .pinned: "フォルダ分け・並べ替え・名前と内容の編集"
         case .ai: "AI に渡す Action と送り先"
         case .privacy: "保存しないものと、Mac の外に出すもの"
         case .applications: "アプリごとの取り込みルール"
@@ -35,6 +38,7 @@ enum SettingsPageID: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
+        case .pinned: "pin"
         case .ai: "sparkles"
         case .privacy: "lock.shield"
         case .applications: "app.badge"
@@ -52,6 +56,8 @@ final class SettingsFormState: ObservableObject {
     @Published var stats = (rate: 0.0, total: 0)
     @Published var selectedApp = ""
     @Published var hasAccessibility = AXIsProcessTrusted()
+    /// ピン留めのページで選ぶ Item（ポップアップの「設定で整理…」から開いたとき）
+    @Published var pinnedSelection: UUID?
 
     init() {
         #if DEBUG
@@ -103,6 +109,7 @@ struct SettingsView: View {
     private func page(_ page: SettingsPageID) -> some View {
         switch page {
         case .general: GeneralPage(settings: settings, model: model, form: form)
+        case .pinned: PinnedPage(model: model, form: form)
         case .ai: AIPage(settings: settings)
         case .privacy: PrivacyPage(settings: settings)
         case .applications: ApplicationsPage(settings: settings, form: form)

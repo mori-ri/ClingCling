@@ -11,7 +11,7 @@ struct PopupView: View {
     static let margin: CGFloat = 18
     static let panelWidth: CGFloat = 320
     static let rowHeight: CGFloat = 28
-    private static let sectionHeight: CGFloat = 26
+    static let sectionHeight: CGFloat = 26
     private static let maxListHeight: CGFloat = 12 * rowHeight
 
     var body: some View {
@@ -46,7 +46,7 @@ struct PopupView: View {
                     PanelDivider()
                     list
                     if let notice = vm.notice { noticeView(notice) }
-                    if !vm.rows.isEmpty {
+                    if !vm.sections.isEmpty {
                         PanelDivider()
                         hints
                     }
@@ -78,6 +78,8 @@ struct PopupView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
+                // 確認の画面などから戻ったときも、そのまま入力して絞り込めるように
+                .onAppear { searchFocused = true }
             if !vm.query.isEmpty {
                 Text("\(vm.rows.count) 件")
                     .font(.system(size: 11))
@@ -92,51 +94,24 @@ struct PopupView: View {
 
     @ViewBuilder
     private var list: some View {
-        if vm.rows.isEmpty {
+        if vm.sections.isEmpty {
             emptyView
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(vm.rows.enumerated()), id: \.element.id) { index, row in
-                            if showsSections && index == 0 && vm.pinnedCount > 0 { sectionLabel("ピン留め") }
-                            if showsSections && index == vm.pinnedCount && vm.pinnedCount > 0 { sectionLabel("履歴") }
-                            ClipRow(row: row, query: vm.query, thumbnail: vm.model.thumbnail(for: row.item),
-                                    fileIcon: vm.model.fileIcon(for: row.item),
-                                    selected: index == vm.selection,
-                                    hovered: vm.hoveredID == row.id,
-                                    onOpenActions: { vm.toggleActions(at: index) })
-                                .id(row.id)
-                                .background {
-                                    if index == vm.selection {
-                                        Color.clear.onGeometryChange(for: CGFloat.self) {
-                                            $0.frame(in: .named("popup")).minY
-                                        } action: { layout.selectedRowY = $0 }
-                                    }
+                        ForEach(vm.sections) { section in
+                            if section.showsHeader { header(for: section) }
+                            ForEach(section.lines) { line in
+                                switch line {
+                                case .row(let row, let index, let indented):
+                                    rowView(row, index: index, selected: vm.selectedFolder == nil && index == vm.selection)
+                                        .padding(.leading, indented ? FolderLine.indent : 0)
+                                case .folder(let folder, let expanded):
+                                    FolderLine(vm: vm, folder: folder, expanded: expanded)
+                                        .id(folder.id)
                                 }
-                                // プレビューを行の横に出すための位置
-                                .background {
-                                    if vm.hoveredID == row.id {
-                                        Color.clear.onGeometryChange(for: CGRect.self) {
-                                            $0.frame(in: .named("popup"))
-                                        } action: { vm.hoveredRowFrame = $0 }
-                                    }
-                                }
-                                // 行のクリック = 直前のアプリへ貼り付け（› ボタンのクリックはボタン側が優先）
-                                .onTapGesture {
-                                    vm.selection = index
-                                    vm.paste(row.item)
-                                }
-                                // マウスを載せた行を選ぶ。動くたびに呼ばれるので、変わったときだけ書き込む。
-                                .onContinuousHover { phase in
-                                    switch phase {
-                                    case .active:
-                                        if vm.hoveredID != row.id { vm.hoveredID = row.id }
-                                        vm.pointerMoved(over: index)
-                                    case .ended:
-                                        if vm.hoveredID == row.id { vm.hoveredID = nil }
-                                    }
-                                }
+                            }
                         }
                     }
                 }
@@ -144,20 +119,72 @@ struct PopupView: View {
                 .frame(height: listHeight)
                 .onChange(of: vm.selection) { _, newValue in
                     // マウスで選んだ行は見えている。端の行で動かすと、スクロールして別の行が下に来てしまう。
-                    guard !vm.selectedByPointer, vm.rows.indices.contains(newValue) else { return }
+                    guard !vm.selectedByPointer, vm.selectedFolder == nil, vm.rows.indices.contains(newValue) else { return }
                     proxy.scrollTo(vm.rows[newValue].id)
+                }
+                .onChange(of: vm.selectedFolder) { _, name in
+                    if let name, !vm.selectedByPointer {
+                        proxy.scrollTo("folder:" + name)
+                    } else if name == nil, !vm.selectedByPointer, vm.rows.indices.contains(vm.selection) {
+                        proxy.scrollTo(vm.rows[vm.selection].id)
+                    }
                 }
             }
         }
     }
 
-    private var showsSections: Bool { vm.query.isEmpty }
+    private func rowView(_ row: PopupViewModel.Row, index: Int, selected: Bool) -> some View {
+        ClipRow(row: row, query: vm.query, thumbnail: vm.model.thumbnail(for: row.item),
+                fileIcon: vm.model.fileIcon(for: row.item),
+                selected: selected,
+                hovered: vm.hoveredID == row.id,
+                onOpenActions: { vm.toggleActions(at: index) })
+            .id(row.id)
+            .background {
+                if selected {
+                    Color.clear.onGeometryChange(for: CGFloat.self) {
+                        $0.frame(in: .named("popup")).minY
+                    } action: { layout.selectedRowY = $0 }
+                }
+            }
+            // プレビューを行の横に出すための位置
+            .background {
+                if vm.hoveredID == row.id {
+                    Color.clear.onGeometryChange(for: CGRect.self) {
+                        $0.frame(in: .named("popup"))
+                    } action: { vm.hoveredRowFrame = $0 }
+                }
+            }
+            // 行のクリック = 直前のアプリへ貼り付け（› ボタンのクリックはボタン側が優先）
+            .onTapGesture {
+                vm.pointerMoved(over: index)
+                vm.paste(row.item)
+            }
+            // マウスを載せた行を選ぶ。動くたびに呼ばれるので、変わったときだけ書き込む。
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    if vm.hoveredID != row.id { vm.hoveredID = row.id }
+                    vm.pointerMoved(over: index)
+                case .ended:
+                    if vm.hoveredID == row.id { vm.hoveredID = nil }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func header(for section: PopupViewModel.ListSection) -> some View {
+        switch section.kind {
+        case .pinned: sectionLabel("ピン留め")
+        case .recent: sectionLabel("履歴")
+        }
+    }
 
     /// 行数に合わせて縮む。多いときは 12 行分でスクロール。
     private var listHeight: CGFloat {
-        let sections = showsSections && vm.pinnedCount > 0 && vm.rows.count > vm.pinnedCount ? 2
-            : showsSections && vm.pinnedCount > 0 ? 1 : 0
-        let total = CGFloat(vm.rows.count) * Self.rowHeight + CGFloat(sections) * Self.sectionHeight
+        let headers = vm.sections.filter(\.showsHeader).count
+        let lines = vm.sections.reduce(0) { $0 + $1.lines.count }
+        let total = CGFloat(lines) * Self.rowHeight + CGFloat(headers) * Self.sectionHeight
         return min(total, Self.maxListHeight)
     }
 
@@ -216,7 +243,7 @@ struct PopupView: View {
 
     private var hints: some View {
         HStack(spacing: 12) {
-            Text("↩ 貼り付け")
+            Text(vm.selectedFolder == nil ? "↩ 貼り付け" : "↩ 開く・閉じる")
             Text("→ アクション")
             Text(vm.query.isEmpty ? "1–9 すぐ貼る" : "esc クリア")
         }
@@ -251,6 +278,18 @@ struct ClipRow: View {
 
     private var item: ClipItem { row.item }
 
+    /// 本文。別名があれば別名を先に出し、本文は控えめに続ける
+    private var label: Text {
+        let content = Text(Presentation.highlighted(Presentation.preview(item), query: query,
+                                                    masked: item.isFullyMasked, selected: selected))
+            .font(.system(size: 13, design: Presentation.isMonospaced(item.contentType) ? .monospaced : .default))
+        guard let title = item.title else { return content }
+        return Text(Presentation.highlighted(title, query: query, masked: false, selected: selected))
+            .font(.system(size: 13, weight: .medium))
+            + Text(verbatim: "  ")
+            + content.foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.75)) : AnyShapeStyle(.secondary))
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             if let thumbnail {
@@ -274,9 +313,7 @@ struct ClipRow: View {
                     .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
             }
 
-            Text(Presentation.highlighted(Presentation.preview(item), query: query,
-                                          masked: item.isFullyMasked, selected: selected))
-                .font(.system(size: 13, design: Presentation.isMonospaced(item.contentType) ? .monospaced : .default))
+            label
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -390,6 +427,7 @@ struct ActionMenu: View {
         case .custom(let custom, _): custom.name
         case .save: Presentation.title(for: .saveImage)
         case .pin(let isPinned): isPinned ? String(localized: "ピン留めを外す") : String(localized: "ピン留めする")
+        case .organize: String(localized: "設定で整理…")
         case .delete: String(localized: "削除")
         }
     }
@@ -401,6 +439,7 @@ struct ActionMenu: View {
         case .custom: CustomAIAction.systemImage
         case .save: SmartAction.saveImage.systemImage
         case .pin(let isPinned): isPinned ? "pin.slash" : "pin"
+        case .organize: "slider.horizontal.3"
         case .delete: "trash"
         }
     }
@@ -412,6 +451,7 @@ struct ActionMenu: View {
         case .custom(_, let n): n.map { "⌘\($0)" } ?? ""
         case .save: "⌘S"
         case .pin: "⌘P"
+        case .organize: ""
         case .delete: "⌘⌫"
         }
     }
@@ -555,6 +595,62 @@ struct ResultView: View {
             }
         }
         .padding(8)
+    }
+}
+
+// MARK: - Folders
+
+/// ピン留めのフォルダの行（アコーディオン）。クリック・↩ で開閉し、開いていれば中の Item がすぐ下に並ぶ。
+/// 開いたかどうかは次にポップアップを開いたときも残る。
+private struct FolderLine: View {
+    @ObservedObject var vm: PopupViewModel
+    let folder: PopupViewModel.Folder
+    let expanded: Bool
+
+    /// フォルダの中の行を下げる幅
+    static let indent: CGFloat = 14
+
+    private var isSelected: Bool { vm.selectedFolder == folder.name }
+    private var secondary: AnyShapeStyle {
+        isSelected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: expanded ? "folder.fill" : "folder")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 16)
+                .foregroundStyle(secondary)
+            Text(verbatim: folder.name)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: "\(folder.rows.count)")
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(secondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .rotationEffect(.degrees(expanded ? 90 : 0))
+                .frame(width: 16)
+                .foregroundStyle(secondary)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: PopupView.rowHeight)
+        .foregroundStyle(isSelected ? Color.white : Color.primary)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Theme.accent : .clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { vm.toggleFolder(folder.name) }
+        .onContinuousHover { phase in
+            if case .active = phase { vm.pointerOverFolder(folder.name) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(Text(expanded ? "開いています" : "閉じています"))
+        .accessibilityHint(Text("クリックか ↩ で開閉します"))
     }
 }
 

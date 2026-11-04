@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let vm = PopupViewModel(model: model)
         popup = PopupController(vm: vm)
         vm.openSettings = { [weak self] in self?.showSettings() }
+        vm.showPinnedInSettings = { [weak self] item in
+            self?.settingsForm.pinnedSelection = item.id
+            self?.showSettings(page: .pinned)
+        }
         statusBar = StatusBarController(model: model,
                                         openPopup: { [weak self] in self?.popup.show() },
                                         openSettings: { [weak self] page in self?.showSettings(page: page) })

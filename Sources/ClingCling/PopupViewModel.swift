@@ -16,6 +16,42 @@ final class PopupViewModel: ObservableObject {
         case result(title: String, text: String)
     }
 
+    /// 一覧の区切り。通常時は ピン留め（フォルダ → フォルダの外）→ 履歴 の順、検索中は 1 つだけ。
+    struct ListSection: Identifiable {
+        enum Kind: Hashable {
+            /// ピン留め（フォルダに入っていないものと、フォルダの行）
+            case pinned
+            case recent
+        }
+
+        let kind: Kind
+        /// 見出しを出すか（検索中と、ピン留めが無いときの履歴は出さない）
+        let showsHeader: Bool
+        let lines: [Line]
+        var id: Kind { kind }
+    }
+
+    /// 一覧の 1 行。フォルダはアコーディオンで、開いていれば中の Item がすぐ下に続く。
+    enum Line: Identifiable {
+        /// `index` は `rows` での位置。`indented` はフォルダの中の行
+        case row(Row, index: Int, indented: Bool)
+        case folder(Folder, expanded: Bool)
+
+        var id: String {
+            switch self {
+            case .row(let row, _, _): row.id.uuidString
+            case .folder(let folder, _): folder.id
+            }
+        }
+    }
+
+    /// ピン留めのフォルダ
+    struct Folder: Identifiable {
+        let name: String
+        let rows: [Row]
+        var id: String { "folder:" + name }
+    }
+
     struct Row: Identifiable {
         let item: ClipItem
         let actions: [SmartAction]
@@ -37,6 +73,8 @@ final class PopupViewModel: ObservableObject {
         /// 「ダウンロード」にファイルで保存（⌘S）
         case save
         case pin(isPinned: Bool)
+        /// 設定のピン留めのページで、別名・フォルダ・並び順を変える
+        case organize
         case delete
 
         var group: Int {
@@ -44,7 +82,7 @@ final class PopupViewModel: ObservableObject {
             case .paste: 0
             case .smart: 1
             case .custom: 2
-            case .save, .pin, .delete: 3
+            case .save, .pin, .organize, .delete: 3
             }
         }
 
@@ -59,9 +97,18 @@ final class PopupViewModel: ObservableObject {
     }
 
     @Published var query = "" { didSet { reload(resetSelection: true) } }
+    /// すべての Item の行（閉じたフォルダの中も含む）。`selection` はこの中の位置
     @Published private(set) var rows: [Row] = []
-    /// `rows` の先頭からこの件数がピン留め（検索中は 0）
-    @Published private(set) var pinnedCount = 0
+    /// 選んでいるフォルダの行。選んでいる間は `selectedRow` が nil
+    @Published private(set) var selectedFolder: String? {
+        didSet {
+            guard selectedFolder != oldValue else { return }
+            selectedByPointer = false
+            pointerLocationAtSelection = NSEvent.mouseLocation
+            actionsOpen = false
+        }
+    }
+    @Published private(set) var sections: [ListSection] = []
     @Published var selection = 0 {
         didSet {
             selectedByPointer = false
@@ -107,6 +154,8 @@ final class PopupViewModel: ObservableObject {
     /// ポップアップを閉じる（`paste` なら直前のアプリへ貼り付け）
     var close: (_ paste: Bool) -> Void = { _ in }
     var openSettings: () -> Void = {}
+    /// 設定のピン留めのページを開き、この Item を選ぶ
+    var showPinnedInSettings: (ClipItem) -> Void = { _ in }
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -129,23 +178,166 @@ final class PopupViewModel: ObservableObject {
     }
 
     func reload(resetSelection: Bool) {
+        let selectedID = selectedRow?.id
         let items = model.items(query: query, pinnedOnly: false)
-        // 検索中は区切らず新しい順、通常時はピン留めを上にまとめる
-        let pinned = query.isEmpty ? items.filter(\.isPinned) : []
-        let recent = query.isEmpty ? items.filter { !$0.isPinned } : items
-        pinnedCount = pinned.count
-        rows = pinned.map { Row(item: $0, actions: model.actions(for: $0), number: nil) }
-            + recent.enumerated().map { index, item in
-                Row(item: item, actions: model.actions(for: item), number: index < 9 ? index + 1 : nil)
+        var built: [ListSection] = []
+        var allRows: [Row] = []
+        var builtFolders: [String] = []
+        func makeRows(_ items: [ClipItem], numbered: Bool = false) -> [(Row, Int)] {
+            items.enumerated().map { offset, item in
+                let row = Row(item: item, actions: model.actions(for: item),
+                              number: numbered && offset < 9 ? offset + 1 : nil)
+                allRows.append(row)
+                return (row, allRows.count - 1)
             }
-        if resetSelection { selection = 0 }
+        }
+        if query.isEmpty {
+            // 通常時はピン留めを上に。設定と同じく、フォルダの行（設定で決めた順）、続いてフォルダに入っていないもの
+            let groups = PinFolders.group(model.pinnedItems(), folderOrder: model.settings.folderOrder)
+            if !groups.isEmpty {
+                var lines: [Line] = []
+                for group in groups {
+                    let made = makeRows(group.items)
+                    if let name = group.folder {
+                        let folder = Folder(name: name, rows: made.map(\.0))
+                        let expanded = isExpanded(name)
+                        builtFolders.append(name)
+                        lines.append(.folder(folder, expanded: expanded))
+                        if expanded { lines += made.map { Line.row($0.0, index: $0.1, indented: true) } }
+                    } else {
+                        lines += made.map { Line.row($0.0, index: $0.1, indented: false) }
+                    }
+                }
+                built.append(ListSection(kind: .pinned, showsHeader: true, lines: lines))
+            }
+            let recent = items.filter { !$0.isPinned }
+            if !recent.isEmpty {
+                built.append(ListSection(kind: .recent, showsHeader: !groups.isEmpty,
+                                         lines: makeRows(recent, numbered: true).map { Line.row($0.0, index: $0.1, indented: false) }))
+            }
+        } else if !items.isEmpty {
+            // 検索中は区切らず新しい順。フォルダの中の Item も並べる
+            built.append(ListSection(kind: .recent, showsHeader: false,
+                                     lines: makeRows(items, numbered: true).map { Line.row($0.0, index: $0.1, indented: false) }))
+        }
+        sections = built
+        rows = allRows
+        // 新しくコピーした Item やピン留めで行が動いても、同じ Item・フォルダを選んだままにする
+        if resetSelection {
+            selectedFolder = nil
+            // 開いたときは最後にコピーしたもの（履歴の先頭）を選ぶ。ピン留めは上にあるが選ばない
+            let recent = built.first { $0.kind == .recent }?.lines.first
+            if case .row(_, let index, _) = recent { selection = index } else { selectFirstLine() }
+        } else {
+            if let name = selectedFolder, !builtFolders.contains(name) { selectFirstLine() }
+            if let selectedID, let index = rows.firstIndex(where: { $0.id == selectedID }) {
+                selection = index
+                // 閉じたフォルダの中に入った Item なら、そのフォルダを選ぶ
+                if !isVisible(index), let folder = rows[index].item.folder, builtFolders.contains(folder) {
+                    selectedFolder = folder
+                }
+            }
+        }
         selection = min(selection, max(rows.count - 1, 0))
+        // 削除などで、選んでいた位置が閉じたフォルダの中になったら選び直す
+        if selectedFolder == nil, !rows.isEmpty, !isVisible(selection) { selectFirstLine() }
         if rows.isEmpty { actionsOpen = false }
         // 削除などで行が消えたらプレビューも閉じる
         if let preview, !rows.contains(where: { $0.id == preview.item.id }) { hidePreview() }
     }
 
-    var selectedRow: Row? { rows.indices.contains(selection) ? rows[selection] : nil }
+    /// 選んでいる Item。フォルダの行を選んでいるときは nil
+    var selectedRow: Row? {
+        guard selectedFolder == nil, rows.indices.contains(selection) else { return nil }
+        return rows[selection]
+    }
+
+    /// キーボードで上下に動く行の並び（開いているフォルダの中を含む）
+    private var navigation: [Line] { sections.flatMap(\.lines) }
+
+    /// 今選んでいる行の `navigation` での位置
+    private var navigationIndex: Int? {
+        navigation.firstIndex { line in
+            switch line {
+            case .folder(let folder, _): folder.name == selectedFolder
+            case .row(_, let index, _): selectedFolder == nil && index == selection
+            }
+        }
+    }
+
+    /// その行が一覧に出ているか（閉じたフォルダの中でないか）
+    private func isVisible(_ index: Int) -> Bool {
+        navigation.contains { if case .row(_, index, _) = $0 { true } else { false } }
+    }
+
+    private func selectFirstLine() {
+        switch navigation.first {
+        case .folder(let folder, _)?: selectedFolder = folder.name
+        case .row(_, let index, _)?:
+            selectedFolder = nil
+            selection = index
+        case nil:
+            selectedFolder = nil
+            selection = 0
+        }
+    }
+
+    private func select(row index: Int) {
+        selectedFolder = nil
+        selection = index
+    }
+
+    // MARK: - Folders
+
+    func isExpanded(_ name: String) -> Bool {
+        model.settings.openFolders.contains(name)
+    }
+
+    /// フォルダを開く・閉じる（その行を選ぶ）。開いたかどうかは次にポップアップを開いたときも残す
+    func toggleFolder(_ name: String) {
+        setExpanded(name, !isExpanded(name))
+    }
+
+    func setExpanded(_ name: String, _ expanded: Bool) {
+        selectedFolder = name
+        guard expanded != isExpanded(name) else { return }
+        if expanded {
+            model.settings.openFolders.append(name)
+        } else {
+            model.settings.openFolders.removeAll { $0 == name }
+        }
+        reload(resetSelection: false)
+    }
+
+    /// フォルダの行にマウスを載せたら、その行を選ぶ（Item の行と同じ）
+    func pointerOverFolder(_ name: String) {
+        guard !actionsOpen, case .list = mode, selectedFolder != name else { return }
+        guard NSEvent.mouseLocation != pointerLocationAtSelection else { return }
+        selectedFolder = name
+        selectedByPointer = true
+    }
+
+    /// →。閉じたフォルダは開き、開いたフォルダでは中の先頭の Item へ
+    private func enterFolder(_ name: String) {
+        guard isExpanded(name) else {
+            setExpanded(name, true)
+            return
+        }
+        let first = navigation.first { if case .row(let row, _, true) = $0 { row.item.folder == name } else { false } }
+        if case .row(_, let index, _)? = first { select(row: index) }
+    }
+
+    /// ←。開いたフォルダは閉じ、フォルダの中の Item ではそのフォルダの行へ。何もしなければ false
+    private func leaveFolder() -> Bool {
+        if let name = selectedFolder {
+            guard isExpanded(name) else { return false }
+            setExpanded(name, false)
+            return true
+        }
+        guard query.isEmpty, let folder = selectedRow?.item.folder, isExpanded(folder) else { return false }
+        selectedFolder = folder
+        return true
+    }
 
     // MARK: - Preview
 
@@ -183,15 +375,22 @@ final class PopupViewModel: ObservableObject {
     /// 行の上でマウスが動いたら、その行を選ぶ（ハイライトして › からアクションメニューを開けるように）。
     /// アクションメニューを開いている間は選び直さない。メニューへ斜めにマウスを動かす途中で閉じてしまうので。
     func pointerMoved(over index: Int) {
-        guard !actionsOpen, case .list = mode, rows.indices.contains(index), selection != index else { return }
+        guard !actionsOpen, case .list = mode, rows.indices.contains(index) else { return }
+        guard selectedFolder != nil || selection != index else { return }
         guard NSEvent.mouseLocation != pointerLocationAtSelection else { return }
-        selection = index
+        select(row: index)
         selectedByPointer = true
     }
 
+    /// ↑↓。開いているフォルダの中の行も順に通る
     func moveSelection(_ delta: Int) {
-        guard !rows.isEmpty else { return }
-        selection = max(0, min(rows.count - 1, selection + delta))
+        let lines = navigation
+        guard !lines.isEmpty else { return }
+        let current = navigationIndex ?? 0
+        switch lines[max(0, min(lines.count - 1, current + delta))] {
+        case .folder(let folder, _): selectedFolder = folder.name
+        case .row(_, let index, _): select(row: index)
+        }
     }
 
     // MARK: - Action menu
@@ -202,7 +401,10 @@ final class PopupViewModel: ObservableObject {
         entries += customActions(for: row.item).enumerated().map { .custom($1, shortcut: $0 < 6 ? $0 + 4 : nil) }
         // 画像は Smart Action の「ダウンロードに保存」が並ぶので重ねない
         if ExportFile.canExport(row.item) && !row.smartActions.contains(.saveImage) { entries.append(.save) }
-        if !row.item.isTemporary { entries.append(.pin(isPinned: row.item.isPinned)) }
+        if !row.item.isTemporary {
+            entries.append(.pin(isPinned: row.item.isPinned))
+            if row.item.isPinned { entries.append(.organize) }
+        }
         entries.append(.delete)
         return entries
     }
@@ -216,17 +418,22 @@ final class PopupViewModel: ObservableObject {
     }
 
     func openActions() {
+        // フォルダの行では、開くか中の Item へ
+        if let name = selectedFolder {
+            enterFolder(name)
+            return
+        }
         guard selectedRow != nil else { return }
         actionsOpen = true
     }
 
     func toggleActions(at index: Int) {
-        if selection == index && actionsOpen {
+        if selectedFolder == nil && selection == index && actionsOpen {
             actionsOpen = false
-        } else {
-            selection = index
-            actionsOpen = true
+            return
         }
+        select(row: index)
+        actionsOpen = true
     }
 
     func moveActionIndex(_ delta: Int) {
@@ -246,6 +453,7 @@ final class PopupViewModel: ObservableObject {
         case .custom(let custom, _): startAI(AIHandoff.request(for: custom, item: row.item))
         case .save: saveSelected()
         case .pin: togglePinSelected()
+        case .organize: openPinnedSettings(row.item)
         case .delete: deleteSelected()
         }
     }
@@ -465,6 +673,14 @@ final class PopupViewModel: ObservableObject {
         model.delete(row.item)
     }
 
+    // MARK: - Pinned
+
+    /// 別名・フォルダ・並び順は設定で変える。ポップアップは選んで貼り付けるだけにする
+    func openPinnedSettings(_ item: ClipItem) {
+        actionsOpen = false
+        showPinnedInSettings(item)
+    }
+
     // MARK: - Keyboard
 
     /// NSEvent の keyDown を処理する。処理したら true。
@@ -477,7 +693,13 @@ final class PopupViewModel: ObservableObject {
         case .list:
             switch event.keyCode {
             case 53: // esc
-                if actionsOpen { actionsOpen = false } else if !query.isEmpty { query = "" } else { close(false) }
+                if actionsOpen {
+                    actionsOpen = false
+                } else if !query.isEmpty {
+                    query = ""
+                } else {
+                    close(false)
+                }
                 return true
             case 125: // ↓
                 if actionsOpen { moveActionIndex(1) } else { moveSelection(1) }
@@ -489,11 +711,19 @@ final class PopupViewModel: ObservableObject {
                 openActions()
                 return true
             case 123: // ←
-                guard actionsOpen else { return false }
-                actionsOpen = false
-                return true
+                if actionsOpen {
+                    actionsOpen = false
+                    return true
+                }
+                return leaveFolder()
             case 36, 76: // return / enter
-                if actionsOpen { performMenuEntry(actionIndex) } else { pasteSelected() }
+                if actionsOpen {
+                    performMenuEntry(actionIndex)
+                } else if let name = selectedFolder {
+                    toggleFolder(name)
+                } else {
+                    pasteSelected()
+                }
                 return true
             case 51 where cmd: // ⌘⌫
                 deleteSelected()
