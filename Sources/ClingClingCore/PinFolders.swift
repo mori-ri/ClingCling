@@ -79,6 +79,12 @@ public enum PinFolders {
         return order.map { $0 == old ? new : $0 }
     }
 
+    /// 別名・フォルダ名に Secret（API キー・パスワード・トークンなど）が入っているか。
+    /// 名前は一覧で伏せずに出すので、入っていれば保存しない。メールアドレスなどの個人情報は名前に使ってよい。
+    public static func containsSecret(_ name: String, detector: SecretDetector = SecretDetector()) -> Bool {
+        detector.scan(name).contains { $0.kind != .personal }
+    }
+
     /// `query` に一致するフォルダ（`SearchQuery` と同じく、大文字小文字・全角半角・かなの違いを無視）
     public static func filter(_ folders: [String], query: String) -> [String] {
         let search = SearchQuery(query)

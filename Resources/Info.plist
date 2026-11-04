@@ -33,5 +33,18 @@
 	<string>ClingCling uses this to pass commands to Terminal for the Run action.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.mori-ri.clingcling.pinned-entry</string>
+			<key>UTTypeDescription</key>
+			<string>ClingCling pinned item</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

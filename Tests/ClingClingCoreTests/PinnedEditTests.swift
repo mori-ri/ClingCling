@@ -19,7 +19,7 @@ struct PinnedEditTests {
         return try #require(try store.recent().first { $0.id == saved.id })
     }
 
-    func edit(_ store: ClipStore, _ item: ClipItem, to text: String, settings: PrivacySettings? = nil) throws -> Bool? {
+    func edit(_ store: ClipStore, _ item: ClipItem, to text: String, settings: PrivacySettings? = nil) throws -> ClipStore.ContentUpdate? {
         guard case .accepted(let edited) = gate.evaluateEdit(text, of: item, settings: settings ?? self.settings) else {
             return nil
         }
@@ -32,7 +32,7 @@ struct PinnedEditTests {
         try store.setTitle(item.id, "メモ")
         try store.setFolder(item.id, "仕事")
 
-        #expect(try edit(store, item, to: "https://example.com/docs") == true)
+        #expect(try edit(store, item, to: "https://example.com/docs") == .updated)
         let edited = try #require(try store.recent().first { $0.id == item.id })
         #expect(edited.content == "https://example.com/docs")
         #expect(edited.contentType == .url)
@@ -81,10 +81,10 @@ struct PinnedEditTests {
                 CaptureInput(text: "b", pasteboardTypes: [], source: terminal), settings: settings) { return other }
             return nil
         }()))
-        #expect(try edit(store, item, to: "b") == false)
+        #expect(try edit(store, item, to: "b") == .duplicate)
         #expect(try store.recent().first { $0.id == item.id }?.content == "a")
         // 同じ本文のままなら書き換えたことにする
-        #expect(try edit(store, item, to: "a") == true)
+        #expect(try edit(store, item, to: "a") == .updated)
     }
 
     @Test func onlyPlainTextIsEditable() throws {
@@ -113,6 +113,36 @@ struct PinnedEditTests {
             Issue.record("expected accepted")
             return
         }
-        #expect(try store.updateContent(savedImage.id, to: edited) == false)
+        #expect(try store.updateContent(savedImage.id, to: edited) == .unavailable)
+    }
+
+    @Test func reportsDeletedItemsAsUnavailable() throws {
+        let store = try ClipStore(path: nil)
+        let item = try pinned(store, "メモ")
+        guard case .accepted(let edited) = gate.evaluateEdit("ほかの文字", of: item, settings: settings) else {
+            Issue.record("expected accepted")
+            return
+        }
+        try store.delete(item.id)
+        #expect(try store.updateContent(item.id, to: edited) == .unavailable)
+    }
+
+    @Test func refusesSecretsInNames() throws {
+        #expect(PinFolders.containsSecret("AKIAIOSFODNN7EXAMPLE"))
+        #expect(PinFolders.containsSecret("password=hunter22"))
+        #expect(!PinFolders.containsSecret("社内 Wiki"))
+        // メールアドレスなどの個人情報は名前に使ってよい
+        #expect(!PinFolders.containsSecret("mori@example.com"))
+
+        let store = try ClipStore(path: nil)
+        let item = try pinned(store, "メモ")
+        try store.setTitle(item.id, "ghp_" + String(repeating: "a", count: 36))
+        try store.setFolder(item.id, "AKIAIOSFODNN7EXAMPLE")
+        let saved = try #require(try store.pinned().first { $0.id == item.id })
+        #expect(saved.title == nil)
+        #expect(saved.folder == nil)
+        try store.setFolder(item.id, "仕事")
+        #expect(try store.renameFolder("仕事", to: "AKIAIOSFODNN7EXAMPLE") == nil)
+        #expect(try store.folders() == ["仕事"])
     }
 }

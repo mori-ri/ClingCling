@@ -124,6 +124,51 @@ public final class ClipStore: ActionStatsProvider {
                 UPDATE clips SET pin_order = -last_copied_at WHERE retention = 'pinned';
                 """)
         }
+        try migrateFolders()
+    }
+
+    /// フォルダの並び順と、ポップアップで開いているか。履歴と同じ DB に置き、Time Machine から外す。
+    /// フォルダは Item が入っている間だけ存在するので、行もトリガーで Item と一緒に増やし、消す
+    /// （最後の Item を削除・ピン留め解除・移動したら忘れる。同じ名前で作り直しても前の位置や開閉を引き継がない）。
+    /// 新しいフォルダは最後に並べる。
+    private func migrateFolders() throws {
+        var tables: Set<String> = []
+        try query("SELECT name FROM sqlite_master WHERE type = 'table'", []) { stmt in
+            if let name = Self.text(stmt, 0) { tables.insert(name) }
+        }
+        let forget = """
+            DELETE FROM pin_folders WHERE name = OLD.folder
+            AND NOT EXISTS (SELECT 1 FROM clips WHERE folder = OLD.folder AND retention = 'pinned');
+            """
+        let add = """
+            INSERT OR IGNORE INTO pin_folders (name, position)
+            VALUES (NEW.folder, (SELECT COALESCE(MAX(position), -1) + 1 FROM pin_folders));
+            """
+        try exec("""
+            CREATE TABLE IF NOT EXISTS pin_folders (
+                name TEXT PRIMARY KEY,
+                position REAL NOT NULL,
+                is_open INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TRIGGER IF NOT EXISTS pin_folders_add_on_insert AFTER INSERT ON clips
+            WHEN NEW.folder IS NOT NULL AND NEW.retention = 'pinned' BEGIN \(add) END;
+            CREATE TRIGGER IF NOT EXISTS pin_folders_add_on_update AFTER UPDATE OF folder, retention ON clips
+            WHEN NEW.folder IS NOT NULL AND NEW.retention = 'pinned' BEGIN \(add) END;
+            CREATE TRIGGER IF NOT EXISTS pin_folders_forget_on_update AFTER UPDATE OF folder, retention ON clips
+            WHEN OLD.folder IS NOT NULL BEGIN \(forget) END;
+            CREATE TRIGGER IF NOT EXISTS pin_folders_forget_on_delete AFTER DELETE ON clips
+            WHEN OLD.folder IS NOT NULL BEGIN \(forget) END;
+            """)
+        // 表が無かった DB では、今あるフォルダを名前順に並べておく
+        if !tables.contains("pin_folders") {
+            var names: [String] = []
+            try query("SELECT DISTINCT folder FROM clips WHERE folder IS NOT NULL AND retention = 'pinned'", []) { stmt in
+                if let name = Self.text(stmt, 0) { names.append(name) }
+            }
+            for (index, name) in PinFolders.sorted(names).enumerated() {
+                try run("INSERT OR IGNORE INTO pin_folders (name, position) VALUES (?, ?)", [name, Double(index)])
+            }
+        }
     }
 
     // MARK: - Clips
@@ -284,29 +329,40 @@ public final class ClipStore: ActionStatsProvider {
         }
     }
 
+    /// `updateContent` の結果
+    public enum ContentUpdate: Equatable, Sendable {
+        case updated
+        /// 同じ内容の Item が既にある
+        case duplicate
+        /// Item が無くなったか、書き換えられない Item になった
+        case unavailable
+    }
+
     /// 本文を書き換える。`edited` は `PrivacyGate.evaluateEdit` で判定し直したもの（本文・分類・機密度などを使う）。
-    /// 書き換えられるのは `isContentEditable` な Item だけ。同じ内容の Item が既にあれば書き換えずに false を返す。
+    /// 書き換えられるのは `isContentEditable` な Item だけ。同じ内容の Item が既にあれば書き換えない。
     @discardableResult
-    public func updateContent(_ id: UUID, to edited: ClipItem) throws -> Bool {
+    public func updateContent(_ id: UUID, to edited: ClipItem) throws -> ContentUpdate {
         guard let current = try fetch(where: "id = ?", [id.uuidString]).first, current.isContentEditable,
               !edited.isTemporary
-        else { return false }
-        guard edited.contentHash != current.contentHash else { return true }
-        if try !fetch(where: "content_hash = ?", [edited.contentHash]).isEmpty { return false }
+        else { return .unavailable }
+        guard edited.contentHash != current.contentHash else { return .updated }
+        if try !fetch(where: "content_hash = ?", [edited.contentHash]).isEmpty { return .duplicate }
         try run("""
             UPDATE clips SET content = ?, content_hash = ?, content_type = ?, sensitivity = ?, external_allowed = ?,
             reasons = ? WHERE id = ?
             """, [edited.content, edited.contentHash, edited.contentType.rawValue, edited.sensitivity.rawValue,
                   edited.externalAllowed ? 1 : 0, edited.reasons.joined(separator: "\n"), id.uuidString])
-        return true
+        return .updated
     }
 
     // MARK: - Titles and folders
 
     /// 別名を付ける（`PinFolders.normalizedTitle` で整える）。付けたらピン留めにする。空なら別名を外す（ピン留めは残す）。
     /// 一時 Item は DB に無いので何も変わらない。
+    /// Secret を含む別名は保存しない（一覧で伏せずに出るため。`PinFolders.containsSecret`）。
     public func setTitle(_ id: UUID, _ title: String?) throws {
         if let title = title.flatMap(PinFolders.normalizedTitle) {
+            guard !PinFolders.containsSecret(title) else { return }
             try run("UPDATE clips SET title = ? WHERE id = ?", [title, id.uuidString])
             try pin(id)
         } else {
@@ -318,6 +374,7 @@ public final class ClipStore: ActionStatsProvider {
     /// 名前の違いが大文字小文字・全角半角・かなだけなら、既にあるフォルダに入れる。
     public func setFolder(_ id: UUID, _ folder: String?) throws {
         if let folder = folder.flatMap(PinFolders.normalizedFolder) {
+            guard !PinFolders.containsSecret(folder) else { return }
             let name = try PinFolders.existing(folder, in: folders()) ?? folder
             try run("UPDATE clips SET folder = ? WHERE id = ? AND retention != 'temporary'", [name, id.uuidString])
             try pin(id)
@@ -326,21 +383,65 @@ public final class ClipStore: ActionStatsProvider {
         }
     }
 
-    /// ピン留めのフォルダの一覧（名前順）
+    /// ピン留めのフォルダの一覧（設定で決めた順。新しいフォルダは最後）
     public func folders() throws -> [String] {
         var names: [String] = []
         try query("SELECT DISTINCT folder FROM clips WHERE folder IS NOT NULL AND retention = 'pinned'", []) { stmt in
             if let name = Self.text(stmt, 0) { names.append(name) }
         }
-        return PinFolders.sorted(names)
+        var order: [String] = []
+        try query("SELECT name FROM pin_folders ORDER BY position ASC, name ASC", []) { stmt in
+            if let name = Self.text(stmt, 0) { order.append(name) }
+        }
+        return PinFolders.ordered(names, by: order)
+    }
+
+    /// フォルダの並び順を、渡した順にする。含まれないフォルダはその後ろに今の順で続ける。
+    public func setFolderOrder(_ names: [String]) throws {
+        let current = try folders()
+        let order = names.filter(current.contains) + current.filter { !names.contains($0) }
+        try exec("BEGIN")
+        do {
+            for (index, name) in order.enumerated() {
+                try run("UPDATE pin_folders SET position = ? WHERE name = ?", [Double(index), name])
+            }
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// ポップアップで開いているフォルダ
+    public func openFolders() throws -> Set<String> {
+        var names: Set<String> = []
+        try query("SELECT name FROM pin_folders WHERE is_open = 1", []) { stmt in
+            if let name = Self.text(stmt, 0) { names.insert(name) }
+        }
+        return names
+    }
+
+    public func setFolderOpen(_ name: String, _ open: Bool) throws {
+        try run("UPDATE pin_folders SET is_open = ? WHERE name = ?", [open ? 1 : 0, name])
     }
 
     /// フォルダの名前を変える。同じ名前のフォルダが既にあれば 1 つにまとめる。変えた後の名前を返す。
+    /// 並び順と開閉は引き継ぐ（まとめたときは、まとめた先のものを使う）。
     @discardableResult
     public func renameFolder(_ old: String, to new: String) throws -> String? {
-        guard let new = PinFolders.normalizedFolder(new) else { return nil }
+        guard let new = PinFolders.normalizedFolder(new), !PinFolders.containsSecret(new) else { return nil }
         let name = try PinFolders.existing(new, in: folders().filter { $0 != old }) ?? new
-        try run("UPDATE clips SET folder = ? WHERE folder = ?", [name, old])
+        guard name != old else { return name }
+        try exec("BEGIN")
+        do {
+            // 先に名前を変えておくと、Item を移したときに新しいフォルダとして最後に並ばない
+            try run("UPDATE OR IGNORE pin_folders SET name = ? WHERE name = ?", [name, old])
+            try run("UPDATE clips SET folder = ? WHERE folder = ?", [name, old])
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
         return name
     }
 

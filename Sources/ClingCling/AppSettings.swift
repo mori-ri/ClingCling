@@ -66,14 +66,6 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(lastSeenReleaseNotes, forKey: "lastSeenReleaseNotes") }
     }
 
-    /// 設定で決めたフォルダの並び順。無いフォルダは後ろに名前順で並ぶ（`PinFolders.ordered`）
-    @Published var folderOrder: [String] {
-        didSet { defaults.set(folderOrder, forKey: "folderOrder") }
-    }
-    /// ポップアップで開いているフォルダ。次に開いたときも開いたままにする
-    @Published var openFolders: [String] {
-        didSet { defaults.set(openFolders, forKey: "openFolders") }
-    }
 
     // Privacy
     @Published var neverSavePasswords: Bool { didSet { defaults.set(neverSavePasswords, forKey: "neverSavePasswords") } }
@@ -132,8 +124,8 @@ final class AppSettings: ObservableObject {
         appLanguageAtLaunch = language
         checksForUpdates = defaults.bool(forKey: "checksForUpdates")
         lastSeenReleaseNotes = defaults.string(forKey: "lastSeenReleaseNotes")
-        folderOrder = defaults.stringArray(forKey: "folderOrder") ?? []
-        openFolders = defaults.stringArray(forKey: "openFolders") ?? []
+        // 試作版がフォルダの並び順と開閉を書いていた場所。フォルダ名を Time Machine に残さないよう、今は履歴の DB に置く
+        for key in ["folderOrder", "openFolders", "collapsedFolders"] { defaults.removeObject(forKey: key) }
         neverSavePasswords = defaults.bool(forKey: "neverSavePasswords")
         neverSaveVerificationCodes = defaults.bool(forKey: "neverSaveVerificationCodes")
         excludePasswordManagers = defaults.bool(forKey: "excludePasswordManagers")

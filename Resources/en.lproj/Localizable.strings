@@ -320,3 +320,5 @@
 "閉じています" = "Collapsed";
 "開いています" = "Expanded";
 "クリックか ↩ で開閉します" = "Click or press ↩ to expand or collapse";
+"パスワード・API キー・トークンを含む名前は付けられません。" = "Names can’t contain passwords, API keys or tokens.";
+"この Item は削除されたか、書き換えられなくなりました。" = "This item was deleted or can no longer be edited.";

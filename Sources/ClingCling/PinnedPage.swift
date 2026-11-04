@@ -85,7 +85,7 @@ struct PinnedPage: View {
                             browser.selection = []
                             listFocused = true
                         }
-                        .onDrop(of: [.utf8PlainText], delegate: PinnedDrop(browser: browser, target: .end, listing: listing))
+                        .onDrop(of: [.pinnedEntry], delegate: PinnedDrop(browser: browser, target: .end, listing: listing))
                         .contextMenu { BackgroundMenu(browser: browser, listing: listing) }
                 }
                 .padding(.horizontal, 6)
@@ -232,13 +232,10 @@ final class PinnedBrowser: ObservableObject {
         return PinnedListing(searching: false, entries: entries, folders: folders, loose: loose)
     }
 
-    /// 一番上に並べるフォルダ。作ったばかりのフォルダは、並び順に入っていればその位置に、無ければ最後に出す
+    /// 並べるフォルダ。作ったばかりでまだ Item の無いフォルダは最後に出す（Item を入れると、新しいフォルダとして最後に並ぶ）
     private func shownFolders() -> [String] {
         let real = model.folders()
-        let order = model.settings.folderOrder
-        let extra = pendingFolders.filter { !real.contains($0) }
-        let placed = order.filter { real.contains($0) || extra.contains($0) }
-        return placed + real.filter { !placed.contains($0) } + extra.filter { !placed.contains($0) }
+        return real + pendingFolders.filter { !real.contains($0) }
     }
 
     /// 履歴が変わったら、消えたフォルダや行を選択などから外す
@@ -423,12 +420,18 @@ final class PinnedBrowser: ObservableObject {
             let renamed: String
             if let index = pendingFolders.firstIndex(of: old) {
                 // まだ Item の無いフォルダは名前を差し替えるだけ。同じ名前のフォルダがあればそちらにまとめる
+                guard !PinFolders.containsSecret(name) else {
+                    notice = String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
+                    return
+                }
                 pendingFolders.remove(at: index)
                 renamed = PinFolders.existing(name, in: model.folders() + pendingFolders) ?? name
                 if !model.folders().contains(renamed) && !pendingFolders.contains(renamed) { pendingFolders.append(renamed) }
-                model.settings.folderOrder = PinFolders.renamed(model.settings.folderOrder, from: old, to: renamed)
             } else {
-                model.renameFolder(old, to: name)
+                if let reason = model.renameFolder(old, to: name) {
+                    notice = reason
+                    return
+                }
                 renamed = PinFolders.existing(name, in: model.folders()) ?? name
             }
             if collapsed.remove(old) != nil { collapsed.insert(renamed) }
@@ -438,7 +441,7 @@ final class PinnedBrowser: ObservableObject {
             guard let item = model.pinnedItems().first(where: { $0.id == id }),
                   PinFolders.normalizedTitle(renameText) != item.title else { return }
             // 空にすると別名を外し、本文を名前として出す
-            model.setTitle(item, renameText)
+            notice = model.setTitle(item, renameText)
         }
     }
 
@@ -461,8 +464,6 @@ final class PinnedBrowser: ObservableObject {
         } else {
             model.setFolder(items, name)
         }
-        // 新しいフォルダは一番下のフォルダの後ろに置く
-        model.settings.folderOrder = listing.folders.filter { $0 != name } + [name]
         startRename(.folder(name: name, count: items.count, expanded: true))
         revealed = .folder(name)
     }
@@ -520,7 +521,6 @@ final class PinnedBrowser: ObservableObject {
             case .folder(let name, _, _):
                 if let index = pendingFolders.firstIndex(of: name) {
                     pendingFolders.remove(at: index)
-                    model.settings.folderOrder.removeAll { $0 == name }
                 } else {
                     model.removeFolder(name)
                 }
@@ -547,7 +547,14 @@ final class PinnedBrowser: ObservableObject {
             dragging = [entry.key]
         }
         dragToken = "clingcling-pinned:" + UUID().uuidString
-        return NSItemProvider(object: dragToken as NSString)
+        // 自分のアプリだけの種類で運ぶ。ほかのアプリから来た文字のドラッグは、この一覧に落とせない
+        let provider = NSItemProvider()
+        let data = Data(dragToken.utf8)
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.pinnedEntry.identifier, visibility: .all) { completion in
+            completion(data, nil)
+            return nil
+        }
+        return provider
     }
 
     var draggingCount: Int { dragging.count }
@@ -581,29 +588,28 @@ final class PinnedBrowser: ObservableObject {
         }
     }
 
-    /// 落とした。運んでいる文字列が自分のドラッグのものか確かめてから動かす
+    /// 落とした。運んでいるものが今のドラッグのものか確かめてから動かす
     func drop(_ providers: [NSItemProvider], listing: PinnedListing) -> Bool {
-        guard let target = dropIndicator, let provider = providers.first else {
-            dropIndicator = nil
-            return false
-        }
+        let moving = dragging
+        // 一覧の外で離したドラッグの状態を残さないよう、落とした時点で忘れる
+        dragging = []
+        defer { dropIndicator = nil }
+        guard let target = dropIndicator, let provider = providers.first, !moving.isEmpty else { return false }
         let token = dragToken
-        _ = provider.loadObject(ofClass: NSString.self) { [weak self] object, _ in
-            let text = (object as? NSString).map(String.init)
+        _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.pinnedEntry.identifier) { [weak self] data, _ in
+            let text = data.flatMap { String(data: $0, encoding: .utf8) }
             Task { @MainActor [weak self] in
                 guard let self, text == token else { return }
-                self.perform(target, listing: listing)
+                self.perform(target, moving: moving, listing: listing)
             }
         }
-        dropIndicator = nil
         return true
     }
 
-    private func perform(_ target: PinnedDropTarget, listing: PinnedListing) {
+    private func perform(_ target: PinnedDropTarget, moving: [PinnedKey], listing: PinnedListing) {
         let all = model.pinnedItems()
-        let items = dragging.compactMap { key in all.first { $0.id == key.itemID } }
-        let folders = dragging.compactMap(\.folderName)
-        dragging = []
+        let items = moving.compactMap { key in all.first { $0.id == key.itemID } }
+        let folders = moving.compactMap(\.folderName)
         if !folders.isEmpty {
             let shown = listing.folders
             switch target {
@@ -796,7 +802,7 @@ private struct EntryRow: View {
         } preview: {
             DragPreview(entry: entry, count: browser.draggingCount, model: browser.model)
         }
-        .onDrop(of: [.utf8PlainText], delegate: PinnedDrop(browser: browser, target: .before(entry.key), listing: listing))
+        .onDrop(of: [.pinnedEntry], delegate: PinnedDrop(browser: browser, target: .before(entry.key), listing: listing))
         .contextMenu { EntryMenu(browser: browser, entry: entry, listing: listing) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -980,7 +986,7 @@ private struct PinnedDrop: DropDelegate {
     let listing: PinnedListing
 
     func validateDrop(info: DropInfo) -> Bool {
-        MainActor.assumeIsolated { browser.draggingCount > 0 }
+        MainActor.assumeIsolated { browser.draggingCount > 0 && info.hasItemsConforming(to: [.pinnedEntry]) }
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -999,7 +1005,7 @@ private struct PinnedDrop: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         MainActor.assumeIsolated {
-            browser.drop(info.itemProviders(for: [.utf8PlainText]), listing: listing)
+            browser.drop(info.itemProviders(for: [.pinnedEntry]), listing: listing)
         }
     }
 }
@@ -1184,9 +1190,7 @@ private struct ItemEditor: View {
     private var content: some View {
         let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
         if item.isContentEditable {
-            TextEditor(text: $draft.content)
-                .font(.system(size: 12, design: Presentation.isMonospaced(item.contentType) ? .monospaced : .default))
-                .scrollContentBackground(.hidden)
+            PlainTextEditor(text: $draft.content, monospaced: Presentation.isMonospaced(item.contentType))
                 .padding(4)
                 .frame(height: 180)
                 .background(Theme.hover, in: shape)
@@ -1223,14 +1227,83 @@ private struct ItemEditor: View {
 
     private func save() {
         draft.message = nil
+        let titleChanged = PinFolders.normalizedTitle(draft.title) != item.title
+        // 本文を書き換えてから名前で断ると半端に保存されるので、名前を先に確かめる
+        if titleChanged, PinFolders.containsSecret(draft.title) {
+            draft.message = String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
+            return
+        }
         if item.isContentEditable, draft.content != item.content,
            let reason = model.updateContent(item, to: draft.content) {
             draft.message = reason
             return
         }
-        if PinFolders.normalizedTitle(draft.title) != item.title { model.setTitle(item, draft.title) }
+        if titleChanged { model.setTitle(item, draft.title) }
         close()
     }
+}
+
+/// 書いたとおりに保存する編集欄。SwiftUI の `TextEditor` は macOS の既定でスマート引用符・ダッシュ・自動修正が効き、
+/// コマンドやコードの `"` や `--` が別の文字に変わってしまうので、それらを切った `NSTextView` を使う。
+private struct PlainTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    let monospaced: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        guard let textView = scrollView.documentView as? NSTextView else { return scrollView }
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isAutomaticTextCompletionEnabled = false
+        textView.isAutomaticLinkDetectionEnabled = false
+        textView.isAutomaticDataDetectionEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
+        textView.smartInsertDeleteEnabled = false
+        textView.drawsBackground = false
+        textView.textColor = .labelColor
+        textView.font = monospaced
+            ? .monospacedSystemFont(ofSize: 12, weight: .regular)
+            : .systemFont(ofSize: 12)
+        textView.textContainerInset = NSSize(width: 2, height: 4)
+        textView.string = text
+        textView.delegate = context.coordinator
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.text = $text
+        guard let textView = scrollView.documentView as? NSTextView, textView.string != text else { return }
+        textView.string = text
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
+    }
+}
+
+extension UTType {
+    /// 設定のピン留めの一覧の中でドラッグする行（中身は今のドラッグの印だけで、Item の本文は運ばない）
+    static let pinnedEntry = UTType(exportedAs: "io.github.mori-ri.clingcling.pinned-entry")
 }
 
 @MainActor
