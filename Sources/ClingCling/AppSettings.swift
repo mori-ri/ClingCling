@@ -66,6 +66,11 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(lastSeenReleaseNotes, forKey: "lastSeenReleaseNotes") }
     }
 
+    /// ポップアップで畳んでいるピン留めのフォルダ
+    @Published var collapsedFolders: Set<String> {
+        didSet { defaults.set(collapsedFolders.sorted(), forKey: "collapsedFolders") }
+    }
+
     // Privacy
     @Published var neverSavePasswords: Bool { didSet { defaults.set(neverSavePasswords, forKey: "neverSavePasswords") } }
     @Published var neverSaveVerificationCodes: Bool {
@@ -123,6 +128,7 @@ final class AppSettings: ObservableObject {
         appLanguageAtLaunch = language
         checksForUpdates = defaults.bool(forKey: "checksForUpdates")
         lastSeenReleaseNotes = defaults.string(forKey: "lastSeenReleaseNotes")
+        collapsedFolders = Set(defaults.stringArray(forKey: "collapsedFolders") ?? [])
         neverSavePasswords = defaults.bool(forKey: "neverSavePasswords")
         neverSaveVerificationCodes = defaults.bool(forKey: "neverSaveVerificationCodes")
         excludePasswordManagers = defaults.bool(forKey: "excludePasswordManagers")

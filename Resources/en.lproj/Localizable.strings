@@ -234,6 +234,36 @@
 "Sensitive な一時 Item は Pin できません。" = "Temporary sensitive items can't be pinned.";
 "画像 %lld×%lld" = "Image %lld×%lld";
 
+/* Popup: titles and folders */
+"Sensitive な一時 Item には別名を付けられません。" = "Temporary sensitive items can't be given a name.";
+"別名を付ける" = "Rename";
+"別名を変更" = "Change Name";
+"別名" = "Name";
+"一覧には別名が出ます。貼り付けるのは元の内容です。空にすると別名を外します。" = "The list shows this name. Pasting still uses the original content. Leave it empty to remove the name.";
+"一覧には別名が出ます。貼り付けるのは元の内容です。別名を付けるとピン留めになります。" = "The list shows this name. Pasting still uses the original content. Naming an item pins it.";
+"保存" = "Save";
+"フォルダに入れる" = "Add to Folder";
+"フォルダを移動" = "Move to Folder";
+"フォルダ名を変更" = "Rename Folder";
+"フォルダ名を変更…" = "Rename Folder…";
+"フォルダ名" = "Folder name";
+"同じ名前のフォルダがあれば、1 つにまとめます。" = "If a folder with the same name exists, the two are merged.";
+"変更" = "Rename";
+"フォルダを解除" = "Remove Folder";
+"フォルダの操作" = "Folder Actions";
+"クリックで開きます" = "Click to expand";
+"クリックで畳みます" = "Click to collapse";
+"今: %@" = "Now: %@";
+"フォルダを探す・新しく作る" = "Find or create a folder";
+"フォルダの名前を入力すると、新しいフォルダを作れます。" = "Type a name to create a new folder.";
+"今入っているフォルダです。" = "The item is already in this folder.";
+"フォルダに入れるとピン留めになります。" = "Adding an item to a folder pins it.";
+"↑↓ 選択" = "↑↓ Select";
+"移動" = "Move";
+"「%@」を作る" = "Create “%@”";
+"フォルダから出す" = "Remove from Folder";
+"フォルダ「%@」" = "Folder “%@”";
+
 /* Menu bar */
 "新しいバージョンを自動で確認しますか？" = "Check for New Versions Automatically?";
 "起動時と 1 日に 1 回、GitHub にリリースの一覧を問い合わせ、新しいバージョンが出たらメニューバーでお知らせします。コピーした内容や設定は送りません。あとから 設定 › 一般 で変更できます。" = "At launch and once a day, ClingCling asks GitHub for the list of releases and lets you know in the menu bar when a new version is out. Nothing you copy and none of your settings are sent. You can change this later in Settings › General.";

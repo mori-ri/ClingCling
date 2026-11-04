@@ -98,6 +98,8 @@ struct ClipPreviewView: View {
     /// 画像 Item の画像。読み込めなかったときは本文（ラベル）を出す
     let image: NSImage?
     let id: UUID?
+    /// ユーザーが付けた別名
+    let title: String?
     let text: String
     /// 本文の欄を出すか。画像は文字を読み取れたときだけ、画像の下に出す
     let showsText: Bool
@@ -105,11 +107,14 @@ struct ClipPreviewView: View {
     /// いつ・どのアプリでコピーしたか
     let meta: String
 
-    static let empty = ClipPreviewView(image: nil, id: nil, text: "", showsText: true, monospaced: false, meta: "")
+    static let empty = ClipPreviewView(image: nil, id: nil, title: nil, text: "", showsText: true, monospaced: false,
+                                       meta: "")
 
-    private init(image: NSImage?, id: UUID?, text: String, showsText: Bool, monospaced: Bool, meta: String) {
+    private init(image: NSImage?, id: UUID?, title: String?, text: String, showsText: Bool, monospaced: Bool,
+                 meta: String) {
         self.image = image
         self.id = id
+        self.title = title
         self.text = text
         self.showsText = showsText
         self.monospaced = monospaced
@@ -118,18 +123,25 @@ struct ClipPreviewView: View {
 
     init(image: NSImage?, item: ClipItem) {
         var parts = [Presentation.meta(item)]
+        if let folder = item.folder { parts.insert(String(localized: "フォルダ「\(folder)」"), at: 0) }
         // 画像の下には本文の代わりに、画像 Item ならラベル（「画像 1280×720」）、ファイルなら名前を出す
         if image != nil { parts.insert(item.isFile ? item.fileSummary : item.content, at: 0) }
         if item.isFullTextCut(limit: Presentation.fullTextLimit) {
             parts.append(String(localized: "先頭 \(Presentation.fullTextLimit) 文字を表示"))
         }
-        self.init(image: image, id: item.id, text: Presentation.fullText(item),
+        self.init(image: image, id: item.id, title: item.title, text: Presentation.fullText(item),
                   showsText: image == nil || item.recognizedText != nil,
                   monospaced: Presentation.isMonospaced(item.contentType), meta: parts.joined(separator: " · "))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let title {
+                Text(verbatim: title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                    .frame(maxWidth: Self.textWidth - 16, alignment: .leading)
+            }
             if let image {
                 let size = Self.displaySize(for: image.size)
                 Image(nsImage: image)

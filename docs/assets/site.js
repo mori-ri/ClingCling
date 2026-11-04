@@ -14,6 +14,8 @@
         paste: "貼り付け",
         save: "ダウンロードに保存",
         pin: "ピン留めする",
+        rename: "別名を付ける",
+        folder: "フォルダに入れる",
         del: "削除",
         notice: "アプリでは、直前のアプリにそのまま貼り付けます。",
         actions: {
@@ -30,6 +32,8 @@
         paste: "Paste",
         save: "Save to Downloads",
         pin: "Pin",
+        rename: "Rename",
+        folder: "Add to Folder",
         del: "Delete",
         notice: "The app pastes straight into the app you were using.",
         actions: {
@@ -62,6 +66,8 @@
     sparkles: stroke('<path d="M6.6 2.6 7.8 6l3.4 1.2-3.4 1.2-1.2 3.4-1.2-3.4L2 7.2 5.4 6l1.2-3.4ZM12 1.8l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5.5-1.4Z"/>'),
     save: stroke('<path d="M8 1.8v7.4M5.2 6.6 8 9.4l2.8-2.8M2.6 9.6v2a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4v-2"/>'),
     pin: stroke('<path d="M5.4 1.8h5.2M6.2 1.8v4.4L4.2 8.6h7.6L9.8 6.2V1.8M8 8.6v4"/>'),
+    rename: stroke('<path d="M6.2 2h3.6M6.2 12h3.6M8 2v10M2 5h2.6M2 9h2.6M11.4 5H14M11.4 9H14"/>'),
+    folder: stroke('<path d="M1.8 4V3.2A1.2 1.2 0 0 1 3 2h3l1.4 1.6H13a1.2 1.2 0 0 1 1.2 1.2v6.4A1.2 1.2 0 0 1 13 12.4H3a1.2 1.2 0 0 1-1.2-1.2V4Z"/><path d="M8 6v4M6 8h4"/>'),
     trash: stroke('<path d="M2.6 3.6h10.8M6 3.4V2h4v1.4M3.8 3.6l.6 9h7.2l.6-9"/>'),
   };
 
@@ -360,9 +366,13 @@
       parts.push('<div class="pop-rule"></div>');
     }
     let n = smart.length + 1;
-    // PopupViewModel.menuEntries と同じく、ディスクに書かない一時 Item には保存とピン留めを出さない
-    if (!item.temporary) parts.push(row({ icon: "save", title: T.save, key: "⌘S" }, n++));
-    if (!item.temporary) parts.push(row({ icon: "pin", title: T.pin, key: "⌘P" }, n++));
+    // PopupViewModel.menuEntries と同じく、ディスクに書かない一時 Item には保存・ピン留め・別名・フォルダを出さない
+    if (!item.temporary) {
+      parts.push(row({ icon: "save", title: T.save, key: "⌘S" }, n++));
+      parts.push(row({ icon: "pin", title: T.pin, key: "⌘P" }, n++));
+      parts.push(row({ icon: "rename", title: T.rename, key: "⌘R" }, n++));
+      parts.push(row({ icon: "folder", title: T.folder, key: "" }, n++));
+    }
     parts.push(row({ icon: "trash", title: T.del, key: "⌘⌫" }, n));
     return parts.join("");
   };

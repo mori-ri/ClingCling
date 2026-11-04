@@ -81,7 +81,9 @@ public final class ClipStore: ActionStatsProvider {
             image_file TEXT,
             image_width INTEGER,
             image_height INTEGER,
-            image_text TEXT
+            image_text TEXT,
+            title TEXT,
+            folder TEXT
         );
         CREATE INDEX IF NOT EXISTS clips_last_copied ON clips(last_copied_at DESC);
         CREATE TABLE IF NOT EXISTS action_stats (
@@ -106,6 +108,13 @@ public final class ClipStore: ActionStatsProvider {
         }
         if !columns.contains("image_text") {
             try exec("ALTER TABLE clips ADD COLUMN image_text TEXT;")
+        }
+        // 別名とフォルダの列が無い古い DB に足す
+        if !columns.contains("title") {
+            try exec("ALTER TABLE clips ADD COLUMN title TEXT;")
+        }
+        if !columns.contains("folder") {
+            try exec("ALTER TABLE clips ADD COLUMN folder TEXT;")
         }
     }
 
@@ -164,17 +173,17 @@ public final class ClipStore: ActionStatsProvider {
         try run("""
             INSERT INTO clips (id, created_at, last_copied_at, content, content_hash, content_type, source_bundle_id,
             source_name, sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height,
-            image_text)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            image_text, title, folder)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, [item.id.uuidString, item.createdAt.timeIntervalSince1970, item.lastCopiedAt.timeIntervalSince1970,
                   item.content, item.contentHash, item.contentType.rawValue, item.source.bundleID, item.source.name,
                   item.sensitivity.rawValue, item.retention.rawValue, item.copyCount, item.externalAllowed ? 1 : 0,
                   item.reasons.joined(separator: "\n"), item.image?.fileName, item.image?.width, item.image?.height,
-                  item.image?.text])
+                  item.image?.text, item.title, item.isPinned ? item.folder : nil])
         return item
     }
 
-    /// 新しい順。`query` は本文（画像は読み取った文字）・アプリ名の部分一致（`SearchQuery`: 大文字小文字・全角半角・かなの違いを無視）。
+    /// 新しい順。`query` は本文（画像は読み取った文字）・別名・フォルダ名・アプリ名の部分一致（`SearchQuery`: 大文字小文字・全角半角・かなの違いを無視）。
     public func recent(limit: Int = 200, query: String = "", pinnedOnly: Bool = false, now: Date = Date()) throws -> [ClipItem] {
         let search = SearchQuery(query)
         let whereSQL = pinnedOnly ? "retention = 'pinned'" : "1"
@@ -198,19 +207,22 @@ public final class ClipStore: ActionStatsProvider {
         return items
     }
 
-    /// 正規化済みの検索対象（本文 + 画像から読み取った文字 + アプリ名）。打鍵ごとに作り直さないよう内容のハッシュで覚えておく。
+    /// 正規化済みの検索対象（本文 + 画像から読み取った文字 + 別名 + フォルダ名 + アプリ名）。打鍵ごとに作り直さないよう内容のハッシュで覚えておく。
     /// 一時 Item（Secret / OTP）は期限後にメモリへ残らないようキャッシュしない。
     private var searchTextCache: [String: String] = [:]
 
     private func matches(_ search: SearchQuery, _ item: ClipItem) -> Bool {
         // 文字を読み取る前に保存した画像は、コピーし直すと同じハッシュのまま読み取った文字が付く
-        let key = item.contentHash + "\u{1F}" + (item.source.name ?? "") + (item.recognizedText == nil ? "" : "\u{1F}text")
+        let key = [item.contentHash, item.source.name ?? "", item.recognizedText == nil ? "" : "text",
+                   item.title ?? "", item.folder ?? ""].joined(separator: "\u{1F}")
         let text: String
         if let cached = searchTextCache[key] {
             text = cached
         } else {
             var parts = [item.content]
             if let recognized = item.recognizedText { parts.append(recognized) }
+            parts.append(item.title ?? "")
+            parts.append(item.folder ?? "")
             parts.append(item.source.name ?? "")
             text = SearchQuery.normalize(parts.joined(separator: "\n"))
             if !item.isTemporary {
@@ -222,9 +234,59 @@ public final class ClipStore: ActionStatsProvider {
     }
 
     public func setPinned(_ id: UUID, _ pinned: Bool) throws {
-        // 一時 Item は Pin できない（Secret を永続化させないため）
-        try run("UPDATE clips SET retention = ? WHERE id = ?",
-                [pinned ? Retention.pinned.rawValue : Retention.normal.rawValue, id.uuidString])
+        // 一時 Item は Pin できない（Secret を永続化させないため）。DB に無いので UPDATE は何も変えない
+        if pinned {
+            try run("UPDATE clips SET retention = ? WHERE id = ?", [Retention.pinned.rawValue, id.uuidString])
+        } else {
+            // ピン留めを外したらフォルダからも出す（別名は残す）
+            try run("UPDATE clips SET retention = ?, folder = NULL WHERE id = ?", [Retention.normal.rawValue, id.uuidString])
+        }
+    }
+
+    // MARK: - Titles and folders
+
+    /// 別名を付ける（`PinFolders.normalizedTitle` で整える）。付けたらピン留めにする。空なら別名を外す（ピン留めは残す）。
+    /// 一時 Item は DB に無いので何も変わらない。
+    public func setTitle(_ id: UUID, _ title: String?) throws {
+        if let title = title.flatMap(PinFolders.normalizedTitle) {
+            try run("UPDATE clips SET title = ?, retention = ? WHERE id = ?", [title, Retention.pinned.rawValue, id.uuidString])
+        } else {
+            try run("UPDATE clips SET title = NULL WHERE id = ?", [id.uuidString])
+        }
+    }
+
+    /// フォルダに入れる（`PinFolders.normalizedFolder` で整える）。入れたらピン留めにする。nil ならフォルダから出す。
+    /// 名前の違いが大文字小文字・全角半角・かなだけなら、既にあるフォルダに入れる。
+    public func setFolder(_ id: UUID, _ folder: String?) throws {
+        if let folder = folder.flatMap(PinFolders.normalizedFolder) {
+            let name = try PinFolders.existing(folder, in: folders()) ?? folder
+            try run("UPDATE clips SET folder = ?, retention = ? WHERE id = ?", [name, Retention.pinned.rawValue, id.uuidString])
+        } else {
+            try run("UPDATE clips SET folder = NULL WHERE id = ?", [id.uuidString])
+        }
+    }
+
+    /// ピン留めのフォルダの一覧（名前順）
+    public func folders() throws -> [String] {
+        var names: [String] = []
+        try query("SELECT DISTINCT folder FROM clips WHERE folder IS NOT NULL AND retention = 'pinned'", []) { stmt in
+            if let name = Self.text(stmt, 0) { names.append(name) }
+        }
+        return PinFolders.sorted(names)
+    }
+
+    /// フォルダの名前を変える。同じ名前のフォルダが既にあれば 1 つにまとめる。変えた後の名前を返す。
+    @discardableResult
+    public func renameFolder(_ old: String, to new: String) throws -> String? {
+        guard let new = PinFolders.normalizedFolder(new) else { return nil }
+        let name = try PinFolders.existing(new, in: folders().filter { $0 != old }) ?? new
+        try run("UPDATE clips SET folder = ? WHERE folder = ?", [name, old])
+        return name
+    }
+
+    /// フォルダを解除する。中の Item はピン留めのまま、フォルダの外に出る。
+    public func removeFolder(_ name: String) throws {
+        try run("UPDATE clips SET folder = NULL WHERE folder = ?", [name])
     }
 
     /// 再利用した Item を先頭に移動する
@@ -406,7 +468,8 @@ public final class ClipStore: ActionStatsProvider {
         var items: [ClipItem] = []
         try query("""
             SELECT id, created_at, last_copied_at, content, content_hash, content_type, source_bundle_id, source_name,
-            sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height, image_text
+            sensitivity, retention, copy_count, external_allowed, reasons, image_file, image_width, image_height, image_text,
+            title, folder
             FROM clips WHERE \(clause)
             """, params) { s in
             let reasons = Self.text(s, 12) ?? ""
@@ -429,7 +492,9 @@ public final class ClipStore: ActionStatsProvider {
                 externalAllowed: sqlite3_column_int(s, 11) == 1,
                 expiresAt: nil,
                 reasons: reasons.isEmpty ? [] : reasons.components(separatedBy: "\n"),
-                image: image
+                image: image,
+                title: Self.text(s, 17),
+                folder: Self.text(s, 18)
             ))
         }
         return items
