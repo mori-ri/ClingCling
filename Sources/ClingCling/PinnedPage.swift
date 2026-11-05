@@ -420,8 +420,8 @@ final class PinnedBrowser: ObservableObject {
             let renamed: String
             if let index = pendingFolders.firstIndex(of: old) {
                 // まだ Item の無いフォルダは名前を差し替えるだけ。同じ名前のフォルダがあればそちらにまとめる
-                guard !PinFolders.containsSecret(name) else {
-                    notice = String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
+                if let reason = AppModel.nameRefusal(name) {
+                    notice = reason
                     return
                 }
                 pendingFolders.remove(at: index)
@@ -564,6 +564,8 @@ final class PinnedBrowser: ObservableObject {
         guard !dragging.isEmpty else { return nil }
         let folders = dragging.compactMap(\.folderName)
         let items = dragging.compactMap(\.itemID)
+        // まだ Item の無いフォルダは並び順を持たない（Item を入れると最後に並ぶ）ので、並べ替えに出さない
+        guard !folders.contains(where: pendingFolders.contains) else { return nil }
         let upper = y < height / 2
         switch target {
         case .before(let key), .after(let key):
@@ -1229,8 +1231,8 @@ private struct ItemEditor: View {
         draft.message = nil
         let titleChanged = PinFolders.normalizedTitle(draft.title) != item.title
         // 本文を書き換えてから名前で断ると半端に保存されるので、名前を先に確かめる
-        if titleChanged, PinFolders.containsSecret(draft.title) {
-            draft.message = String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
+        if titleChanged, let reason = AppModel.nameRefusal(PinFolders.normalizedTitle(draft.title)) {
+            draft.message = reason
             return
         }
         if item.isContentEditable, draft.content != item.content,

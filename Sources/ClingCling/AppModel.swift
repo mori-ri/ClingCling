@@ -22,6 +22,11 @@ final class AppModel: ObservableObject {
     init(settings: AppSettings) throws {
         self.settings = settings
         store = try ClipStore(path: ClipStore.defaultURL())
+        // 0.2.0 が設定に置いていたフォルダの並び順と開閉を DB へ移す
+        if let legacy = settings.takeLegacyFolderState() {
+            try? store.setFolderOrder(legacy.order)
+            for name in legacy.open { try? store.setFolderOpen(name, true) }
+        }
         updates = UpdateChecker(
             currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
             isEnabled: { settings.checksForUpdates },
@@ -110,15 +115,16 @@ final class AppModel: ObservableObject {
     @discardableResult
     func setTitle(_ item: ClipItem, _ title: String) -> String? {
         guard !item.isTemporary else { return nil }
-        if PinFolders.containsSecret(title) { return Self.secretNameMessage }
+        if let reason = Self.nameRefusal(PinFolders.normalizedTitle(title)) { return reason }
         try? store.setTitle(item.id, title)
         revision += 1
         return nil
     }
 
-    /// 名前は一覧で伏せずに出るので、Secret を含む名前は付けさせない
-    private static var secretNameMessage: String {
-        String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
+    /// 名前は一覧で伏せずに出るので、Secret を含む名前は付けさせない。`name` は保存する形に整えたもの
+    static func nameRefusal(_ name: String?) -> String? {
+        guard let name, PinFolders.containsSecret(name) else { return nil }
+        return String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
     }
 
     /// 本文を書き換える。コピーしたときと同じく Privacy Gate で判定し直す。書き換えられなければ理由を返す。
@@ -159,9 +165,8 @@ final class AppModel: ObservableObject {
     /// 変えられなければ理由を返す。
     @discardableResult
     func renameFolder(_ old: String, to new: String) -> String? {
-        if PinFolders.containsSecret(new) { return Self.secretNameMessage }
-        guard (try? store.renameFolder(old, to: new)) != nil else { return nil }
-        revision += 1
+        if let reason = Self.nameRefusal(PinFolders.normalizedFolder(new)) { return reason }
+        if (try? store.renameFolder(old, to: new)) != nil { revision += 1 }
         return nil
     }
 
