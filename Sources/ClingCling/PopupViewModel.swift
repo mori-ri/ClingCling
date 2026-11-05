@@ -136,6 +136,9 @@ final class PopupViewModel: ObservableObject {
     @Published var actionsOpen = false {
         didSet {
             if actionsOpen != oldValue { actionIndex = 0 }
+            // 閉じるとポップアップの幅が戻り、マウスを動かさなくても一覧の行がその下に来る。
+            // ピン留めなどで行が動いたときも同じなので、ここで記録して、その行を選ばないようにする。
+            if oldValue && !actionsOpen { pointerLocationAtSelection = NSEvent.mouseLocation }
             // アクションメニューにもプレビューが出るので重ねない
             if actionsOpen { hidePreview() }
         }

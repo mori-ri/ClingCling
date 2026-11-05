@@ -99,18 +99,20 @@ struct PopupView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
+                    // セクションごとに ForEach を入れ子にすると、ピン留めで行がセクションをまたいで動いたとき、
+                    // LazyVStack が移る前の行のビューを使い回して更新しない（選択・ホバーの色や、› が開く行が古いまま残る）。
+                    // 見出しも含めて 1 つの ForEach に並べ、行の移動として扱わせる。
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(vm.sections) { section in
-                            if section.showsHeader { header(for: section) }
-                            ForEach(section.lines) { line in
-                                switch line {
-                                case .row(let row, let index, let indented):
-                                    rowView(row, index: index, selected: vm.selectedFolder == nil && index == vm.selection)
-                                        .padding(.leading, indented ? FolderLine.indent : 0)
-                                case .folder(let folder, let expanded):
-                                    FolderLine(vm: vm, folder: folder, expanded: expanded)
-                                        .id(folder.id)
-                                }
+                        ForEach(entries) { entry in
+                            switch entry {
+                            case .header(let section):
+                                header(for: section)
+                            case .line(.row(let row, let index, let indented)):
+                                rowView(row, index: index, selected: vm.selectedFolder == nil && index == vm.selection)
+                                    .padding(.leading, indented ? FolderLine.indent : 0)
+                            case .line(.folder(let folder, let expanded)):
+                                FolderLine(vm: vm, folder: folder, expanded: expanded)
+                                    .id(folder.id)
                             }
                         }
                     }
@@ -130,6 +132,25 @@ struct PopupView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// 一覧に上から並べるもの。セクションの見出しと、行（Item・フォルダ）
+    private enum Entry: Identifiable {
+        case header(PopupViewModel.ListSection)
+        case line(PopupViewModel.Line)
+
+        var id: String {
+            switch self {
+            case .header(let section): "header:\(section.kind)"
+            case .line(let line): line.id
+            }
+        }
+    }
+
+    private var entries: [Entry] {
+        vm.sections.flatMap { section in
+            (section.showsHeader ? [Entry.header(section)] : []) + section.lines.map(Entry.line)
         }
     }
 
