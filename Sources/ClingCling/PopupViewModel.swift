@@ -109,6 +109,8 @@ final class PopupViewModel: ObservableObject {
         }
     }
     @Published private(set) var sections: [ListSection] = []
+    /// 開いているフォルダ（`reload` で読む）
+    private var openFolders: Set<String> = []
     @Published var selection = 0 {
         didSet {
             selectedByPointer = false
@@ -193,7 +195,8 @@ final class PopupViewModel: ObservableObject {
         }
         if query.isEmpty {
             // 通常時はピン留めを上に。設定と同じく、フォルダの行（設定で決めた順）、続いてフォルダに入っていないもの
-            let groups = PinFolders.group(model.pinnedItems(), folderOrder: model.settings.folderOrder)
+            openFolders = model.openFolders()
+            let groups = PinFolders.group(model.pinnedItems(), folderOrder: model.folders())
             if !groups.isEmpty {
                 var lines: [Line] = []
                 for group in groups {
@@ -290,7 +293,7 @@ final class PopupViewModel: ObservableObject {
     // MARK: - Folders
 
     func isExpanded(_ name: String) -> Bool {
-        model.settings.openFolders.contains(name)
+        openFolders.contains(name)
     }
 
     /// フォルダを開く・閉じる（その行を選ぶ）。開いたかどうかは次にポップアップを開いたときも残す
@@ -301,11 +304,7 @@ final class PopupViewModel: ObservableObject {
     func setExpanded(_ name: String, _ expanded: Bool) {
         selectedFolder = name
         guard expanded != isExpanded(name) else { return }
-        if expanded {
-            model.settings.openFolders.append(name)
-        } else {
-            model.settings.openFolders.removeAll { $0 == name }
-        }
+        model.setFolderOpen(name, expanded)
         reload(resetSelection: false)
     }
 
@@ -518,7 +517,7 @@ final class PopupViewModel: ObservableObject {
     /// 履歴の n 番（1–9）を貼り付ける
     func paste(number: Int) {
         guard let index = rows.firstIndex(where: { $0.number == number }) else { return }
-        selection = index
+        select(row: index)
         paste(rows[index].item)
     }
 

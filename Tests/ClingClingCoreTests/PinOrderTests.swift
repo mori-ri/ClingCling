@@ -85,6 +85,59 @@ struct PinOrderTests {
         #expect(groups.map(\.folder) == ["b", "a", nil])
     }
 
+    @Test func foldersKeepTheirOrderAndOpenStateInTheStore() throws {
+        let store = try ClipStore(path: nil)
+        let now = Date()
+        for (i, text) in ["a", "b", "c", "d"].enumerated() { try store.save(make(text, at: now.addingTimeInterval(Double(i)))) }
+        // 新しいフォルダは最後に並ぶ
+        try store.setFolder(try id(store, "a"), "仕事")
+        try store.setFolder(try id(store, "b"), "メール")
+        try store.setFolder(try id(store, "c"), "個人")
+        #expect(try store.folders() == ["仕事", "メール", "個人"])
+
+        try store.setFolderOrder(["個人", "仕事"])
+        #expect(try store.folders() == ["個人", "仕事", "メール"])
+        try store.setFolderOpen("仕事", true)
+        #expect(try store.openFolders() == ["仕事"])
+
+        // 名前を変えても位置と開閉は引き継ぐ
+        #expect(try store.renameFolder("仕事", to: "Work") == "Work")
+        #expect(try store.folders() == ["個人", "Work", "メール"])
+        #expect(try store.openFolders() == ["Work"])
+
+        // 1 つにまとめたら、まとめた先の位置を使う
+        #expect(try store.renameFolder("個人", to: "メール") == "メール")
+        #expect(try store.folders() == ["Work", "メール"])
+    }
+
+    @Test func forgetsFoldersThatBecomeEmpty() throws {
+        let store = try ClipStore(path: nil)
+        let now = Date()
+        for (i, text) in ["a", "b", "c"].enumerated() { try store.save(make(text, at: now.addingTimeInterval(Double(i)))) }
+        try store.setFolder(try id(store, "a"), "仕事")
+        try store.setFolder(try id(store, "b"), "メール")
+        try store.setFolder(try id(store, "c"), "個人")
+        try store.setFolderOpen("仕事", true)
+
+        // 最後の Item を削除・ピン留め解除・移動したら、並び順と開閉も忘れる
+        try store.delete(try id(store, "a"))
+        try store.setPinned(try id(store, "b"), false)
+        try store.setFolder(try id(store, "c"), nil)
+        #expect(try store.folders().isEmpty)
+        #expect(try store.openFolders().isEmpty)
+
+        // 同じ名前で作り直しても、前の位置や開閉を引き継がない
+        try store.setFolder(try id(store, "c"), "個人")
+        try store.setFolder(try id(store, "b"), "仕事")
+        #expect(try store.folders() == ["個人", "仕事"])
+        #expect(try store.openFolders().isEmpty)
+
+        // 解除しても忘れる
+        try store.removeFolder("個人")
+        try store.setFolder(try id(store, "c"), "個人")
+        #expect(try store.folders() == ["仕事", "個人"])
+    }
+
     @Test func migratesOldDatabasesRecentFirst() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ClingCling-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -106,14 +159,20 @@ struct PinOrderTests {
             VALUES ('\(UUID().uuidString)', 0, 10, 'older', 'h-older', 'text', 'normal', 'pinned', 1),
                    ('\(UUID().uuidString)', 0, 20, 'newer', 'h-newer', 'text', 'normal', 'pinned', 1),
                    ('\(UUID().uuidString)', 0, 30, 'history', 'h-history', 'text', 'normal', 'normal', 1);
+            INSERT INTO clips (id, created_at, last_copied_at, content, content_hash, content_type, sensitivity,
+                retention, external_allowed, folder)
+            VALUES ('\(UUID().uuidString)', 0, 5, 'w', 'h-w', 'text', 'normal', 'pinned', 1, 'フォルダ 10'),
+                   ('\(UUID().uuidString)', 0, 6, 'm', 'h-m', 'text', 'normal', 'pinned', 1, 'フォルダ 2');
             """, nil, nil, nil)
         sqlite3_close(db)
         try #require(created == SQLITE_OK)
 
         let store = try ClipStore(path: url)
-        #expect(try store.pinned().map(\.content) == ["newer", "older"])
+        #expect(try store.pinned().map(\.content) == ["newer", "older", "m", "w"])
+        // 前からあったフォルダは名前順に並べておく
+        #expect(try store.folders() == ["フォルダ 2", "フォルダ 10"])
         // 移行の後にピン留めしたものは先頭に来る
         try store.setPinned(try id(store, "history"), true)
-        #expect(try store.pinned().map(\.content) == ["history", "newer", "older"])
+        #expect(try store.pinned().map(\.content) == ["history", "newer", "older", "m", "w"])
     }
 }

@@ -66,13 +66,15 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(lastSeenReleaseNotes, forKey: "lastSeenReleaseNotes") }
     }
 
-    /// 設定で決めたフォルダの並び順。無いフォルダは後ろに名前順で並ぶ（`PinFolders.ordered`）
-    @Published var folderOrder: [String] {
-        didSet { defaults.set(folderOrder, forKey: "folderOrder") }
-    }
-    /// ポップアップで開いているフォルダ。次に開いたときも開いたままにする
-    @Published var openFolders: [String] {
-        didSet { defaults.set(openFolders, forKey: "openFolders") }
+    /// 0.2.0 がフォルダの並び順と開閉を書いていた場所。フォルダ名を Time Machine に残さないよう、今は履歴の DB に置く。
+    /// 読んだら消す（`AppModel` が DB へ移す）。書いていなければ nil。
+    func takeLegacyFolderState() -> (order: [String], open: [String])? {
+        let keys = ["folderOrder", "openFolders", "collapsedFolders"]
+        guard keys.contains(where: { defaults.object(forKey: $0) != nil }) else { return nil }
+        let state = (order: defaults.stringArray(forKey: "folderOrder") ?? [],
+                     open: defaults.stringArray(forKey: "openFolders") ?? [])
+        for key in keys { defaults.removeObject(forKey: key) }
+        return state
     }
 
     // Privacy
@@ -132,8 +134,6 @@ final class AppSettings: ObservableObject {
         appLanguageAtLaunch = language
         checksForUpdates = defaults.bool(forKey: "checksForUpdates")
         lastSeenReleaseNotes = defaults.string(forKey: "lastSeenReleaseNotes")
-        folderOrder = defaults.stringArray(forKey: "folderOrder") ?? []
-        openFolders = defaults.stringArray(forKey: "openFolders") ?? []
         neverSavePasswords = defaults.bool(forKey: "neverSavePasswords")
         neverSaveVerificationCodes = defaults.bool(forKey: "neverSaveVerificationCodes")
         excludePasswordManagers = defaults.bool(forKey: "excludePasswordManagers")

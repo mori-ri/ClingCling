@@ -22,6 +22,11 @@ final class AppModel: ObservableObject {
     init(settings: AppSettings) throws {
         self.settings = settings
         store = try ClipStore(path: ClipStore.defaultURL())
+        // 0.2.0 が設定に置いていたフォルダの並び順と開閉を DB へ移す
+        if let legacy = settings.takeLegacyFolderState() {
+            try? store.setFolderOrder(legacy.order)
+            for name in legacy.open { try? store.setFolderOpen(name, true) }
+        }
         updates = UpdateChecker(
             currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
             isEnabled: { settings.checksForUpdates },
@@ -79,9 +84,19 @@ final class AppModel: ObservableObject {
         (try? store.pinned(query: query)) ?? []
     }
 
-    /// ピン留めのフォルダの一覧（設定で決めた順。決めていないものは名前順で後ろに）
+    /// ピン留めのフォルダの一覧（設定で決めた順。新しいフォルダは最後）
     func folders() -> [String] {
-        PinFolders.ordered((try? store.folders()) ?? [], by: settings.folderOrder)
+        (try? store.folders()) ?? []
+    }
+
+    /// ポップアップで開いているフォルダ
+    func openFolders() -> Set<String> {
+        (try? store.openFolders()) ?? []
+    }
+
+    /// ポップアップでフォルダを開閉する（次に開いたときも残す）。一覧の中身は変わらないので revision は上げない
+    func setFolderOpen(_ name: String, _ open: Bool) {
+        try? store.setFolderOpen(name, open)
     }
 
     func actions(for item: ClipItem) -> [SmartAction] {
@@ -96,11 +111,20 @@ final class AppModel: ObservableObject {
         revision += 1
     }
 
-    /// 別名を付ける（付けたらピン留めになる）。空なら別名を外す。
-    func setTitle(_ item: ClipItem, _ title: String) {
-        guard !item.isTemporary else { return }
+    /// 別名を付ける（付けたらピン留めになる）。空なら別名を外す。付けられなければ理由を返す。
+    @discardableResult
+    func setTitle(_ item: ClipItem, _ title: String) -> String? {
+        guard !item.isTemporary else { return nil }
+        if let reason = Self.nameRefusal(PinFolders.normalizedTitle(title)) { return reason }
         try? store.setTitle(item.id, title)
         revision += 1
+        return nil
+    }
+
+    /// 名前は一覧で伏せずに出るので、Secret を含む名前は付けさせない。`name` は保存する形に整えたもの
+    static func nameRefusal(_ name: String?) -> String? {
+        guard let name, PinFolders.containsSecret(name) else { return nil }
+        return String(localized: "パスワード・API キー・トークンを含む名前は付けられません。")
     }
 
     /// 本文を書き換える。コピーしたときと同じく Privacy Gate で判定し直す。書き換えられなければ理由を返す。
@@ -113,8 +137,10 @@ final class AppModel: ObservableObject {
             return String(localized: "パスワード・API キー・認証コードを含む内容は保存できません。")
         case .accepted(let edited):
             do {
-                guard try store.updateContent(item.id, to: edited) else {
-                    return String(localized: "同じ内容の Item が既にあります。")
+                switch try store.updateContent(item.id, to: edited) {
+                case .updated: break
+                case .duplicate: return String(localized: "同じ内容の Item が既にあります。")
+                case .unavailable: return String(localized: "この Item は削除されたか、書き換えられなくなりました。")
                 }
             } catch {
                 return String(localized: "保存できませんでした。")
@@ -135,13 +161,13 @@ final class AppModel: ObservableObject {
         revision += 1
     }
 
-    /// フォルダの名前を変える。同じ名前のフォルダがあれば 1 つにまとめる。
-    func renameFolder(_ old: String, to new: String) {
-        guard let name = try? store.renameFolder(old, to: new) else { return }
-        // 並び順も引き継ぐ
-        settings.folderOrder = PinFolders.renamed(settings.folderOrder, from: old, to: name)
-        settings.openFolders = PinFolders.renamed(settings.openFolders, from: old, to: name)
-        revision += 1
+    /// フォルダの名前を変える。同じ名前のフォルダがあれば 1 つにまとめる（並び順と開閉は引き継ぐ）。
+    /// 変えられなければ理由を返す。
+    @discardableResult
+    func renameFolder(_ old: String, to new: String) -> String? {
+        if let reason = Self.nameRefusal(PinFolders.normalizedFolder(new)) { return reason }
+        if (try? store.renameFolder(old, to: new)) != nil { revision += 1 }
+        return nil
     }
 
     /// ピン留めを並べ替える。`items` を `target` の前（nil なら `visible` の最後の後ろ）へ。
@@ -154,19 +180,17 @@ final class AppModel: ObservableObject {
         revision += 1
     }
 
-    /// フォルダを並べ替える。`shown` は画面に並べている順（まだ Item の無いフォルダも含む）
+    /// フォルダを並べ替える。`shown` は画面に並べている順（まだ Item の無いフォルダも含む。それは並び順に残さない）
     func moveFolders(_ folders: [String], in shown: [String], before target: String?) {
         let moved = PinFolders.move(folders, in: shown, visible: shown, before: target)
         guard moved != shown else { return }
-        settings.folderOrder = moved
+        try? store.setFolderOrder(moved)
         revision += 1
     }
 
-    /// フォルダを解除する（中の Item はピン留めのまま）
+    /// フォルダを解除する（中の Item はピン留めのまま。並び順と開閉も忘れる）
     func removeFolder(_ name: String) {
         try? store.removeFolder(name)
-        settings.folderOrder.removeAll { $0 == name }
-        settings.openFolders.removeAll { $0 == name }
         revision += 1
     }
 
