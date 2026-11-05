@@ -136,6 +136,9 @@ final class PopupViewModel: ObservableObject {
     @Published var actionsOpen = false {
         didSet {
             if actionsOpen != oldValue { actionIndex = 0 }
+            // 閉じるとポップアップの幅が戻り、マウスを動かさなくても一覧の行がその下に来る。
+            // ピン留めなどで行が動いたときも同じなので、ここで記録して、その行を選ばないようにする。
+            if oldValue && !actionsOpen { pointerLocationAtSelection = NSEvent.mouseLocation }
             // アクションメニューにもプレビューが出るので重ねない
             if actionsOpen { hidePreview() }
         }
@@ -181,7 +184,6 @@ final class PopupViewModel: ObservableObject {
 
     func reload(resetSelection: Bool) {
         let selectedID = selectedRow?.id
-        let hoveredOffset = hoveredID.flatMap(offset(of:))
         let items = model.items(query: query, pinnedOnly: false)
         var built: [ListSection] = []
         var allRows: [Row] = []
@@ -226,9 +228,6 @@ final class PopupViewModel: ObservableObject {
         }
         sections = built
         rows = allRows
-        // ピン留めなどで行が別の位置へ動くと、元の行は消えるだけでホバーの終わりが届かない。
-        // マウスが載っていない行がホバーの色のまま残るので外す（マウスを動かせば載せ直される）。
-        if let hoveredID, hoveredOffset != offset(of: hoveredID) { self.hoveredID = nil }
         // 新しくコピーした Item やピン留めで行が動いても、同じ Item・フォルダを選んだままにする
         if resetSelection {
             selectedFolder = nil
@@ -251,19 +250,6 @@ final class PopupViewModel: ObservableObject {
         if rows.isEmpty { actionsOpen = false }
         // 削除などで行が消えたらプレビューも閉じる
         if let preview, !rows.contains(where: { $0.id == preview.item.id }) { hidePreview() }
-    }
-
-    /// 一覧の上端から Item の行までの距離。閉じたフォルダの中の行は nil
-    private func offset(of id: UUID) -> CGFloat? {
-        var offset: CGFloat = 0
-        for section in sections {
-            if section.showsHeader { offset += PopupView.sectionHeight }
-            for line in section.lines {
-                if case .row(let row, _, _) = line, row.id == id { return offset }
-                offset += PopupView.rowHeight
-            }
-        }
-        return nil
     }
 
     /// 選んでいる Item。フォルダの行を選んでいるときは nil
