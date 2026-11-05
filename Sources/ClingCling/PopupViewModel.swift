@@ -181,6 +181,7 @@ final class PopupViewModel: ObservableObject {
 
     func reload(resetSelection: Bool) {
         let selectedID = selectedRow?.id
+        let hoveredBefore = rows.firstIndex { $0.id == hoveredID }.map { (index: $0, item: rows[$0].item) }
         let items = model.items(query: query, pinnedOnly: false)
         var built: [ListSection] = []
         var allRows: [Row] = []
@@ -225,6 +226,16 @@ final class PopupViewModel: ObservableObject {
         }
         sections = built
         rows = allRows
+        // ピン留めなどで行が別の位置へ動くと、元の行は消えるだけでホバーの終わりが届かない。
+        // マウスが載っていない行がホバーの色のまま残るので外す（マウスを動かせば載せ直される）。
+        if let hoveredBefore {
+            let index = rows.firstIndex { $0.id == hoveredBefore.item.id }
+            let item = index.map { rows[$0].item }
+            if index != hoveredBefore.index || item?.isPinned != hoveredBefore.item.isPinned
+                || item?.folder != hoveredBefore.item.folder {
+                hoveredID = nil
+            }
+        }
         // 新しくコピーした Item やピン留めで行が動いても、同じ Item・フォルダを選んだままにする
         if resetSelection {
             selectedFolder = nil
