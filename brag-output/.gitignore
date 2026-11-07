@@ -1,0 +1,13 @@
+# 作り直せる中間ファイルとダウンロードした素材は含めない
+work/frames/
+work/stills/
+work/sheet/
+work/pkg/
+work/fonts/
+work/*.tgz
+work/*.wav
+work/*.png
+work/*.jpg
+work/*.log
+work/*.woff2
+work/site.css
