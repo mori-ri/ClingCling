@@ -11,3 +11,5 @@ work/*.jpg
 work/*.log
 work/*.woff2
 work/site.css
+work/vframes/
+work/vstills/

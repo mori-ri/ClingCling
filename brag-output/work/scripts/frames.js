@@ -6,7 +6,7 @@ const path = require('path');
   const total = Math.round(Number(dur) * Number(fps));
   const end = to ? Number(to) : total;
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width: Number(process.env.VW || 1920), height: Number(process.env.VH || 1080) }, deviceScaleFactor: 1 });
   page.on('pageerror', (e) => console.log('pageerror:', e.message));
   await page.goto('file://' + path.resolve(page_));
   await page.evaluate(() => window.ready);
