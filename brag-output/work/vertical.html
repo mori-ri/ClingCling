@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>ClingCling brag vertical</title>
+<link rel="stylesheet" href="site.css">
+<style>
+@font-face { font-family: "Dela Gothic One"; src: url("fonts/DelaGothicOne-subset.woff2") format("woff2"); }
+@font-face { font-family: "NotoJP"; font-weight: 400; src: url("fonts/noto-sans-jp-japanese-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "NotoJP"; font-weight: 600; src: url("fonts/noto-sans-jp-japanese-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "NotoJP"; font-weight: 700; src: url("fonts/noto-sans-jp-japanese-700-normal.woff2") format("woff2"); }
+
+:root {
+  --display: "Dela Gothic One", "Inter", "NotoJP", sans-serif;
+  --body: "Inter", "NotoJP", sans-serif;
+  --mono: "JetBrains Mono", "NotoJP", monospace;
+}
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; }
+body { background: var(--coral); font-family: var(--body); color: var(--navy); }
+#frame { position: absolute; inset: 0; overflow: hidden; background: var(--coral); }
+.layer { position: absolute; inset: 0; }
+.abs { position: absolute; }
+.disp { font-family: var(--display); font-feature-settings: "palt"; font-weight: 400; line-height: 1.25; white-space: nowrap; }
+
+/* ポップアップの文字を Inter + Noto に */
+.pop-row-wrap, .confirm-in { font-family: "Inter", "NotoJP", sans-serif; }
+.pop { -webkit-backdrop-filter: none; backdrop-filter: none; background: #fff; }
+
+/* キー */
+.key {
+  position: absolute;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 150px; height: 150px; padding: 0 36px;
+  border-radius: 30px;
+  background: #fff;
+  color: var(--navy);
+  font: 600 72px/1 "Inter", sans-serif;
+  letter-spacing: 0.02em;
+  box-shadow: 0 10px 0 rgb(0 26 66 / 0.22), 0 18px 40px rgb(0 26 66 / 0.18);
+  white-space: nowrap;
+}
+.key.small { height: 96px; min-width: 96px; padding: 0 26px; border-radius: 20px; font-size: 46px; box-shadow: 0 7px 0 rgb(0 26 66 / 0.22), 0 14px 30px rgb(0 26 66 / 0.18); }
+
+/* エディタ */
+.editor {
+  width: 900px; border-radius: 18px; background: #fff;
+  box-shadow: 0 30px 80px rgb(0 26 66 / 0.25);
+  overflow: hidden;
+}
+.editor .bar { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: #f4f4f6; border-bottom: 1px solid rgb(0 0 0 / 0.06); }
+.editor .bar i { width: 14px; height: 14px; border-radius: 50%; background: #d9d9de; display: block; }
+.editor .bar span { margin-left: 16px; font: 500 20px/1 var(--body); color: #6e6e73; }
+.editor .body { padding: 30px 40px 40px; font: 400 27px/1.9 var(--body); color: var(--pop-ink); }
+.editor .body .h { font-weight: 700; font-size: 32px; }
+.editor .body code { font: 400 24px/1.9 var(--mono); }
+.sel { background: rgb(0 120 255 / 0.22); border-radius: 4px; }
+.caret { display: inline-block; width: 3px; height: 32px; background: var(--pop-ink); vertical-align: -6px; margin-left: 2px; }
+
+/* 見出しの 3 行 */
+.say2 { display: block; margin: 0 -0.14em; padding: 0 0.14em 0.04em; border-radius: 0.1em; }
+.say2.on { background: var(--navy); color: #fff; }
+
+/* ブラウザ */
+.browser { width: 760px; border-radius: 16px; background: #fff; box-shadow: 0 30px 80px rgb(0 26 66 / 0.28); overflow: hidden; }
+.browser .bar { height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: #f4f4f6; }
+.browser .bar i { width: 14px; height: 14px; border-radius: 50%; background: #d9d9de; display: block; }
+.browser .url { flex: 1; margin-left: 18px; height: 40px; border-radius: 10px; background: #fff; display: flex; align-items: center; padding: 0 16px; font: 400 21px/1 var(--body); color: var(--pop-ink); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08); }
+.browser .page { padding: 34px 36px 40px; display: grid; gap: 16px; }
+.browser .page b { display: block; height: 28px; width: 46%; border-radius: 8px; background: var(--navy); opacity: 0.9; }
+.browser .page s { display: block; height: 16px; border-radius: 6px; background: rgb(0 26 66 / 0.1); }
+.browser .page .chart { display: flex; align-items: flex-end; gap: 14px; height: 150px; margin-top: 10px; }
+.browser .page .chart u { flex: 1; border-radius: 8px 8px 0 0; background: var(--coral); }
+
+.confirm { max-width: none; width: 360px; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 16px;
+  height: 72px; padding: 0 30px; border-radius: 999px;
+  background: var(--navy); color: #fff;
+  font: 600 30px/1 var(--body); white-space: nowrap;
+}
+.timer { width: 34px; height: 34px; }
+
+.spark { width: 26px; height: 26px; border-radius: 50%; background: var(--spark); box-shadow: 0 0 30px 10px var(--spark); }
+.pill2 { display: inline-flex; align-items: center; height: 84px; padding: 0 44px; border-radius: 22px; background: var(--navy); color: #fff; font: 600 34px/1 var(--body); }
+</style>
+</head>
+<body>
+<div id="frame">
+  <img id="rings" class="abs" src="fonts/mark-white.svg" alt="" style="width:1500px; max-width:none;">
+
+  <!-- 1 Hook -->
+  <div id="s1" class="layer">
+    <div id="s1key" class="key" style="left:410px; top:520px;">⌘C</div>
+    <div class="abs disp" id="s1a" style="left:0; width:1080px; text-align:center; top:780px; font-size:150px;">コピーの、</div>
+    <div class="abs disp" id="s1b" style="left:0; width:1080px; text-align:center; top:990px; font-size:150px;">その先まで。</div>
+  </div>
+
+  <!-- 2 Reveal -->
+  <div id="s2" class="layer">
+    <div id="editor" class="abs editor" style="left:90px; top:620px;">
+      <div class="bar"><i></i><i></i><i></i><span>週次メモ.md</span></div>
+      <div class="body">
+        <div class="h">## 今週のメモ</div>
+        <div>- レポート: <code id="selurl">https://example.com/report/2026-q3</code></div>
+        <div>- 共有先: <span id="caretline"></span><span id="caret" class="caret"></span></div>
+        <div style="color:#b0b0b8;">&nbsp;</div>
+        <div style="color:#b0b0b8;">&nbsp;</div>
+      </div>
+    </div>
+    <div id="s2pop" class="abs" style="left:300px; top:500px; transform-origin:0 0;"><div class="pop-row-wrap"><div class="pop list"></div></div></div>
+    <div id="s2key" class="key small" style="left:400px; top:1360px;">⌘⇧V</div>
+    <div id="s2logo" class="abs" style="left:0; width:1080px; top:220px; display:flex; justify-content:center;">
+      <div style="display:flex; align-items:center; gap:22px;">
+        <img src="fonts/mark-white.svg" style="width:120px;" alt="">
+        <span class="disp" style="font-size:84px; color:var(--navy);">ClingCling</span>
+      </div>
+    </div>
+    <div id="s2txt" class="abs disp" style="left:0; width:1080px; text-align:center; top:390px; font-size:58px; line-height:1.45;">⌘⇧V でカーソルの横に開く</div>
+  </div>
+
+  <!-- 3-5 3 つの例 -->
+  <div id="s3" class="layer">
+    <div id="lines" class="abs" style="left:100px; top:200px;">
+      <div class="disp" id="tag" style="font-size:44px; margin-bottom:40px;">コピーの、その先まで。</div>
+      <div class="disp" style="font-size:86px; line-height:1.32; display:grid; justify-items:start; gap:6px;">
+        <span class="say2" id="l0">URL は開く。</span>
+        <span class="say2" id="l1">エラーは AI に聞く。</span>
+        <span class="say2" id="l2">API キーは残さない。</span>
+      </div>
+    </div>
+    <div id="pop3" class="abs" style="left:82px; top:740px; transform-origin:0 0;">
+      <div class="pop-row-wrap"><div class="pop list"></div><div class="pop menu"></div></div>
+    </div>
+    <div id="key3" class="key small" style="left:1010px; top:820px;">⌘1</div>
+    <div id="key4" class="key small" style="left:1010px; top:820px;">↩</div>
+    <div id="browser" class="abs browser" style="left:160px; top:780px;">
+      <div class="bar"><i></i><i></i><i></i><div class="url">https://example.com/report/2026-q3</div></div>
+      <div class="page"><b></b><s style="width:88%"></s><s style="width:72%"></s>
+        <div class="chart"><u style="height:40%"></u><u style="height:62%"></u><u style="height:48%"></u><u style="height:86%"></u><u style="height:100%"></u></div>
+      </div>
+    </div>
+    <div id="confirmWrap" class="abs" style="left:216px; top:780px; transform-origin:0 0;">
+      <figure class="pop confirm">
+        <div class="confirm-in">
+          <div class="confirm-title"><span>説明する</span><span>Claude</span></div>
+          <p class="confirm-desc">Claude を開き、次の指示と本文 62 文字を新しいチャットに貼り付けます。</p>
+          <div class="confirm-box">
+            <b>次のエラーの原因として考えられることと、具体的な解決手順を簡潔に説明してください。</b>
+            <code>TypeError: Cannot read properties of undefined (reading 'map')</code>
+          </div>
+          <div class="confirm-buttons"><span>キャンセル esc</span><span class="go" id="go">送る ↩</span></div>
+        </div>
+      </figure>
+    </div>
+    <div id="chip5" class="abs chip" style="left:235px; top:1250px;">
+      <svg class="timer" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgb(255 255 255 / 0.25)" stroke-width="5"/><circle id="timerArc" cx="18" cy="18" r="14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="88" stroke-dashoffset="0" transform="rotate(-90 18 18)"/></svg>
+      <span>5 分で消える。ディスクには書かない</span>
+    </div>
+  </div>
+
+  <!-- 6 Privacy -->
+  <div id="s6" class="layer">
+    <img id="s6mark" class="abs" src="fonts/mark.svg" alt="" style="left:390px; top:520px; width:300px;">
+    <div id="s6spark" class="abs spark" style="left:527px; top:618px;"></div>
+    <div id="s6a" class="abs disp" style="left:0; width:1080px; text-align:center; top:860px; font-size:92px; line-height:1.4; color:#fff;">ClingCling は<br>聞かずに通信しません</div>
+    <div id="s6b" class="abs" style="left:0; width:1080px; text-align:center; top:1180px; font: 400 40px/1.5 var(--body); color: var(--on-navy-soft);">判定はすべて Mac の中で行います。</div>
+  </div>
+
+  <!-- 7 Outro -->
+  <div id="s7" class="layer">
+    <img id="s7mark" class="abs" src="fonts/mark-white.svg" alt="" style="left:310px; top:430px; width:460px;">
+    <div id="s7name" class="abs disp" style="left:0; width:1080px; text-align:center; top:780px; font-size:150px;">ClingCling</div>
+    <div id="s7tag" class="abs disp" style="left:0; width:1080px; text-align:center; top:990px; font-size:60px;">コピーの、その先まで。</div>
+    <div id="s7cta" class="abs" style="left:0; width:1080px; top:1160px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:30px;">
+      <span class="pill2">ダウンロード</span>
+      <span style="font: 500 30px/1.5 var(--body);"><b style="font-weight:700;">無料・オープンソース。</b>macOS 14 以降</span>
+    </div>
+  </div>
+</div>
+
+<script src="lib.js"></script>
+<script>
+"use strict";
+const { evaluate, listHTML, menuHTML, SAMPLES } = window.CC;
+const items = SAMPLES.map((s) => ({ ...evaluate(s), content: s }));
+const $ = (id) => document.getElementById(id);
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const outCubic = (x) => 1 - Math.pow(1 - x, 3);
+const inCubic = (x) => x * x * x;
+const outBack = (x, s = 1.6) => 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// 入りと出を持つ要素。入りは下から、出は上へ
+function enter(el, t, tin, tout, { dy = 40, dur = 0.3, outDur = 0.22, dx = 0, scale = 0 } = {}) {
+  const a = outCubic(seg(t, tin, tin + dur));
+  const b = tout == null ? 0 : inCubic(seg(t, tout - outDur, tout));
+  const op = a * (1 - b);
+  const y = (1 - a) * dy - b * dy * 0.6;
+  const x = (1 - a) * dx;
+  const s = 1 - (1 - a) * scale;
+  el.style.opacity = op;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  el.style.visibility = op <= 0.001 ? "hidden" : "visible";
+}
+const hide = (el) => { el.style.opacity = 0; el.style.visibility = "hidden"; };
+
+// キーを押す: 押し込みの深さ（0〜1）
+const press = (t, at) => {
+  const d = t - at;
+  if (d < 0 || d > 0.22) return 0;
+  return d < 0.06 ? d / 0.06 : 1 - (d - 0.06) / 0.16;
+};
+function keyAt(el, t, tin, at, tout, scale = 1) {
+  enter(el, t, tin, tout, { dy: 30, dur: 0.22, scale: 0.15 });
+  const p = press(t, at);
+  el.style.transform += ` translateY(${p * 10}px)`;
+  el.style.boxShadow = p > 0 ? `0 ${10 - p * 8}px 0 rgb(0 26 66 / 0.22), 0 10px 24px rgb(0 26 66 / 0.18)` : "";
+}
+
+// ポップアップが開く（LP の .opens: translateY(-6px) scale(0.97) から）
+function opens(el, t, at, close, base) {
+  const a = seg(t, at, at + 0.26);
+  const c = close == null ? 0 : seg(t, close, close + 0.16);
+  const op = clamp(a * 3) * (1 - c);
+  const k = outBack(a, 1.2);
+  const s = base * lerp(0.94, 1, k) * (1 - c * 0.04);
+  el.style.opacity = op;
+  el.style.visibility = op <= 0.001 ? "hidden" : "visible";
+  el.style.transform = `translateY(${(1 - k) * -14}px) scale(${s})`;
+}
+
+const cache = new Map();
+const setHTML = (el, html) => { if (cache.get(el) !== html) { el.innerHTML = html; cache.set(el, html); } };
+
+function render(t) {
+  // 背景
+  const navy = t >= 16 && t < 18.5;
+  $("frame").style.background = navy ? "var(--navy)" : "var(--coral)";
+
+  // 輪: 右上でゆっくり回る
+  const rings = $("rings");
+  rings.style.opacity = navy ? 0 : 0.95;
+  const rx = t < 5.5 ? -240 : t < 16 ? -200 : -160;
+  rings.style.left = rx + "px";
+  rings.style.top = (t < 5.5 ? 1500 : t < 16 ? 1320 : 1380) + "px";
+  rings.style.transform = `rotate(${-8 + t * 0.6}deg) scale(${1 + t * 0.004})`;
+  if (t >= 18.5) { rings.style.opacity = 0.0; }
+
+  // ── 1 Hook 0–2.5
+  const s1 = t < 2.5;
+  $("s1").style.display = s1 ? "" : "none";
+  if (s1) {
+    keyAt($("s1key"), t, 0.0, 0.25, 2.5);
+    enter($("s1a"), t, 0.5, 2.5, { dy: 80, dur: 0.28, scale: 0.08 });
+    enter($("s1b"), t, 1.0, 2.5, { dy: 80, dur: 0.28, scale: 0.08 });
+  }
+
+  // ── 2 Reveal 2.5–5.5
+  const s2 = t >= 2.5 && t < 5.5;
+  $("s2").style.display = s2 ? "" : "none";
+  if (s2) {
+    enter($("editor"), t, 2.5, 5.5, { dy: 60, dur: 0.35 });
+    // URL を選択していく
+    const sel = outCubic(seg(t, 2.7, 3.0));
+    const u = $("selurl");
+    u.style.background = `linear-gradient(90deg, rgb(0 120 255 / 0.22) ${sel * 100}%, transparent ${sel * 100}%)`;
+    u.style.borderRadius = "4px";
+    // カーソルの点滅（ポップアップが開いたら止める）
+    $("caret").style.opacity = t > 3.5 ? 1 : (Math.floor((t - 2.5) * 2) % 2 === 0 ? 1 : 0.15);
+    keyAt($("s2key"), t, 3.0, 3.25, 5.5);
+    setHTML($("s2pop").querySelector(".list"), listHTML(items, 0, false));
+    opens($("s2pop"), t, 3.5, 5.3, 1.8);
+    // カーソルの位置へ
+    const cr = $("caret").getBoundingClientRect();
+    $("s2pop").style.left = cr.left - 14 + "px";
+    $("s2pop").style.top = cr.bottom + 12 + "px";
+    enter($("s2logo"), t, 3.75, 5.5, { dy: 40 });
+    enter($("s2txt"), t, 4.0, 5.5, { dy: 40 });
+  }
+
+  // ── 3–5 3 つの例 5.5–16
+  const s3 = t >= 5.5 && t < 16;
+  $("s3").style.display = s3 ? "" : "none";
+  if (s3) {
+    enter($("lines"), t, 5.5, 16, { dy: 50, dur: 0.35 });
+    const which = t < 9 ? 0 : t < 12.5 ? 1 : 2;
+    ["l0", "l1", "l2"].forEach((id, i) => {
+      $(id).classList.toggle("on", i === which);
+    });
+
+    const pop = $("pop3");
+    const list = pop.querySelector(".list");
+    const menu = pop.querySelector(".menu");
+    // 場面ごとの開く・閉じる時刻
+    const open = which === 0 ? 5.75 : which === 1 ? 9.0 : 12.5;
+    const close = which === 0 ? 7.6 : which === 1 ? 10.4 : 15.75;
+
+    // API キーの行は最後に消える
+    const vanish = which === 2 ? outCubic(seg(t, 15.0, 15.4)) : 0;
+    setHTML(list, listHTML(items, which, false));
+    setHTML(menu, menuHTML(items[which]));
+    menu.style.marginTop = `${46 + which * 28}px`;
+    opens(pop, t, open, close, 1.6);
+    const row = list.querySelector(`[data-row="2"]`);
+    if (row) {
+      row.style.transition = "none";
+      row.style.opacity = 1 - vanish;
+      row.style.height = which === 2 ? `${28 * (1 - vanish)}px` : "";
+      row.style.overflow = "hidden";
+      row.style.transform = `translateX(${vanish * 40}px)`;
+    }
+    menu.style.opacity = 1 - vanish;
+    // 消えたあとは番号を詰める
+    if (which === 2) list.querySelectorAll(".pop-num").forEach((n, i) => { if (i > 2) n.textContent = vanish >= 1 ? String(i) : String(i + 1); });
+
+    // 押したメニューの項目を光らせる
+    const flash = (at) => { const p = press(t, at); return p; };
+    const active = menu.querySelector('[aria-current="true"]');
+    if (active) active.style.filter = `brightness(${1 + 0.35 * (flash(7.5) + flash(10.25))})`;
+
+    // ⌘1（URL・エラー）
+    const k3 = $("key3");
+    if (which === 0) keyAt(k3, t, 7.0, 7.5, 7.9);
+    else if (which === 1) keyAt(k3, t, 9.75, 10.25, 10.6);
+    else hide(k3);
+    k3.style.left = "480px"; k3.style.top = "1250px";
+
+    // ブラウザが開く
+    if (which === 0) {
+      const b = $("browser");
+      const a = outBack(seg(t, 7.75, 8.1), 1.1);
+      const out = seg(t, 8.8, 9.0);
+      b.style.opacity = clamp(seg(t, 7.75, 7.9)) * (1 - out);
+      b.style.visibility = t > 7.75 && t < 9 ? "visible" : "hidden";
+      b.style.transform = `translateY(${(1 - a) * 60 - out * 30}px) scale(${lerp(0.92, 1, a)})`;
+    } else hide($("browser"));
+
+    // エラー: 確認画面
+    const cw = $("confirmWrap");
+    if (which === 1) {
+      opens(cw, t, 10.5, 12.2, 1.8);
+      const p = press(t, 11.75);
+      $("go").style.filter = `brightness(${1 - p * 0.25})`;
+      $("go").style.transform = `scale(${1 - p * 0.06})`;
+      keyAt($("key4"), t, 11.4, 11.75, 12.25);
+      $("key4").style.left = "492px"; $("key4").style.top = "1400px";
+    } else { hide(cw); hide($("key4")); }
+
+    // API キー: 5 分で消える
+    const chip = $("chip5");
+    if (which === 2) {
+      enter(chip, t, 13.75, 15.9, { dy: 30, dur: 0.3 });
+      const arc = seg(t, 13.75, 15.0);
+      $("timerArc").setAttribute("stroke-dashoffset", String(88 * arc));
+    } else hide(chip);
+  }
+
+  // ── 6 Privacy 16–18.5
+  const s6 = t >= 16 && t < 18.5;
+  $("s6").style.display = s6 ? "" : "none";
+  if (s6) {
+    enter($("s6mark"), t, 16.0, 18.5, { dy: 30, dur: 0.35, scale: 0.1 });
+    const sp = $("s6spark");
+    const glow = seg(t, 16.25, 16.6);
+    sp.style.opacity = glow;
+    const pulse = 1 + 0.18 * Math.sin((t - 16) * Math.PI * 2 * 1); // 1 拍 0.5 秒の倍、2 拍で 1 周
+    sp.style.transform = `scale(${glow * pulse})`;
+    sp.style.opacity = glow * (1 - seg(t, 18.25, 18.5));
+    enter($("s6a"), t, 16.25, 18.5, { dy: 50 });
+    enter($("s6b"), t, 16.75, 18.5, { dy: 40 });
+  }
+
+  // ── 7 Outro 18.5–21
+  const s7 = t >= 18.5;
+  $("s7").style.display = s7 ? "" : "none";
+  if (s7) {
+    enter($("s7mark"), t, 18.5, null, { dy: 40, dur: 0.4, scale: 0.15 });
+    enter($("s7name"), t, 18.75, null, { dy: 60, dur: 0.32, scale: 0.06 });
+    enter($("s7tag"), t, 19.25, null, { dy: 40 });
+    enter($("s7cta"), t, 19.5, null, { dy: 40 });
+  }
+}
+
+window.render = render;
+window.ready = (async () => {
+  await document.fonts.load('400 40px "Dela Gothic One"', "コピーの、その先まで。ClingCling");
+  for (const w of [400, 600, 700]) await document.fonts.load(`${w} 30px "NotoJP"`, "週次メモ今週のレポート共有先無料オープンソース");
+  await document.fonts.load('600 40px "Inter"', "⌘⇧V");
+  await document.fonts.load('400 20px "JetBrains Mono"', "https://");
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+  return true;
+})();
+</script>
+</body>
+</html>

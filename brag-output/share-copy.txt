@@ -1,0 +1,3 @@
+URL は開く。エラーは AI に聞く。API キーは残さない。
+コピーした内容を Mac の中で見分けて、次の一手を ⌘⇧V で出すクリップボード「ClingCling」。無料・オープンソースです。
+https://mori-ri.github.io/ClingCling/
