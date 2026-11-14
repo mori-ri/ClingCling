@@ -84,12 +84,53 @@ struct RedactionTests {
         #expect(detector.redact(text) == text)
     }
 
-    @Test func onlyTheRandomPartOfAURLIsMasked() throws {
-        let url = "https://docs.google.com/document/d/1aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdEF/edit"
+    // ドキュメント ID や追跡用のパラメータは秘密とは限らないので伏せない。外部送信は不可のまま
+    @Test(arguments: [
+        "https://docs.google.com/document/d/1aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdEF/edit",
+        "https://www.figma.com/design/Zq8vT2xLm9Rk4PwY7nB3cJ/Design?node-id=1-2",
+        "https://example.com/article?fbclid=IwAR3xKq9Lm2ZpQ7rWt5YnB8cJd4FhS1g",
+    ])
+    func randomIDsInAURLAreNotMasked(_ url: String) throws {
         let item = try #require(capture(url))
         #expect(item.sensitivity == .suspicious)
         #expect(item.contentType == .url)
-        #expect(detector.redact(url) == "https://docs.google.com/document/d/1aBc••••••••cdEF/edit")
+        #expect(item.externalAllowed == false)
+        #expect(!item.isFullyMasked)
+        #expect(item.rowText(detector: detector) == url)
+        #expect(detector.redact(url) == url)
+    }
+
+    @Test func randomIDsInAURLInsideTextAreNotMasked() {
+        let text = "資料はこちら https://docs.google.com/document/d/1aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdEF/edit です"
+        #expect(detector.redact(text) == text)
+        // URL の外にある Token は伏せる
+        let token = "Zq8vT2xLm9Rk4PwY7nB3cJ6hF1dS5gA0 https://example.com"
+        #expect(detector.redact(token) == "Zq8v••••••••5gA0 https://example.com")
+    }
+
+    // URL のパラメータやパスワードの値だけを伏せ、URL の残りは読めるようにする
+    @Test(arguments: [
+        ("https://example.com/callback?code=abcdefgh12345678&state=x",
+         "https://example.com/callback?code=abcd••••••••5678&state=x"),
+        ("https://user:hunter2pass@example.com/path", "https://user:••••••••@example.com/path"),
+        // GitHub の Secret Scanning に本物の Webhook と誤認されないよう、ホスト名を分けて組み立てる
+        ("https://hooks." + "slack.com/services/T0123ABCD/B0456EFGH/abcdefghijklmnopqrstuvwx",
+         "https://hooks." + "slack.com/services/T0123ABCD/B0456EFGH/abcd••••••••uvwx"),
+    ])
+    func onlyTheSecretValueOfAURLIsMasked(_ url: String, _ shown: String) throws {
+        let item = try #require(capture(url))
+        #expect(item.contentType == .url)
+        #expect(item.sensitivity == .secret)
+        #expect(item.isTemporary)
+        #expect(!item.isFullyMasked)
+        #expect(item.rowText(detector: detector) == shown)
+        #expect(item.fullText(limit: 1_000, detector: detector) == shown)
+    }
+
+    @Test func aURLWithAKnownSecretIsFullyMasked() throws {
+        let url = "https://example.com/?q=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        let item = try #require(capture(url))
+        #expect(item.isFullyMasked)
     }
 
     @Test func randomTokensAreStillDetected() {

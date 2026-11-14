@@ -270,7 +270,7 @@ public struct PrivacyGate: Sendable {
         for finding in findings {
             let level: Sensitivity = switch finding.kind {
             case .knownSecret: .secret
-            case .highEntropy: .suspicious
+            case .highEntropy, .urlIdentifier: .suspicious
             case .personal: .personal
             }
             sensitivity = max(sensitivity, level)

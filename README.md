@@ -107,8 +107,8 @@ CLINGCLING_SNAPSHOT=/tmp/p.png .build/debug/ClingCling   # ポップアップを
 | 入力 | 扱い |
 |---|---|
 | Concealed / Transient marker、Password Manager、Never Capture アプリ | キャプチャしない |
-| 既知 Secret（API キー、JWT、秘密鍵、接続文字列、カード番号…）、認証コード | **ディスクに書かず**メモリで 5 分保持、一覧とカードではマスク（認証コードは読めるようそのまま表示）、外部送信不可 |
-| 高エントロピー文字列（未知 Token・長い Hex） | 保存するが Local only。一覧とカードでは該当部分だけをマスク（URL のパスやファイルパス、CamelCase の語は Token とみなさない） |
+| 既知 Secret（API キー、JWT、秘密鍵、接続文字列、カード番号…）、認証コード | **ディスクに書かず**メモリで 5 分保持、一覧とカードではマスク（認証コードは読めるようそのまま表示）、外部送信不可。URL の中のパスワード・`token=` などのパラメータ・Webhook の鍵だけなら、その値だけをマスクして URL の残りは読めるまま出す |
+| 高エントロピー文字列（未知 Token・長い Hex） | 保存するが Local only。一覧とカードでは該当部分だけをマスク（URL のパスやファイルパス、CamelCase の語は Token とみなさない）。URL の中のランダムな ID（ドキュメント ID・追跡用のパラメータなど）はマスクしない |
 | 個人情報（メール・電話番号）、住所、Local Only アプリ、分類不能 | 保存するが Local only |
 | 画像 | 写っている文字（OCR）をテキストと同じく Secret 検出にかける。Secret や認証コードが写っていれば、画像もディスクに書かずメモリで 5 分保持。文字以外の中身や読み違いまでは検査できないので、常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
 | ファイル | パスだけを保存し、中身は読まない（「中身をテキストでコピー」を選んだときだけ読む）。常に Local only（marker・Password Manager・アプリ単位のポリシーはテキストと同じく適用） |
