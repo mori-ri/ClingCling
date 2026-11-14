@@ -155,12 +155,16 @@
     /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
     /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/,
     /-----BEGIN CERTIFICATE-----/,
-    /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]+@/i,
+    /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:([^\s@/]+)@/i,
+    /\bhooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/([A-Za-z0-9]{16,})/,
+    /\bdiscord(?:app)?\.com\/api\/webhooks\/\d+\/([A-Za-z0-9_-]{30,})/,
     /(?:password|passwd|pwd|secret|api[_-]?key|private[_-]?key|[_-]token|accesstoken|authtoken)(?:\\?["'])?\s*[=:]\s*(?:\\?['"])?[^\s'"\\]{6,}/i,
     /(?:パスワード|パスコード|シークレット|秘密鍵|API ?キー|アクセスキー|アクセストークン)\s*(?:[:：=＝]|は)\s*[「『"']?[!-~]{4,}/,
     /暗証番号\s*(?:[:：=＝は]\s*)?[0-9０-９]{4,}/,
-    /[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=[^&\s]{8,}/i,
+    /[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=([^&\s]{8,})/i,
   ];
+  // SecretDetector.valueOnlyRules。グループのある規則は値だけが秘密で、URL の Item なら値だけを伏せる
+  const hasGroup = (re) => new RegExp(`${re.source}|`).exec("").length > 1;
   const PERSONAL = [
     /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
     /(?<![\d-])(?:\+81[- ]?|0)\d{1,4}[- ]\d{1,4}[- ]\d{3,4}(?![\d-])/,
@@ -169,10 +173,12 @@
   const CARD = /(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)/;
   const TOKEN = /[A-Za-z0-9+/=_\-.~]{20,}/;
   const CAMEL_WORDS = /^(?:[A-Z]?[a-z]{2,}|[A-Z]{2,}(?![a-z])|[0-9]+|[-_=.~+])+$/;
+  const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"'`]+/i;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  // 一致した範囲 [開始, 終了) の一覧
-  const spans = (re, s) => [...s.matchAll(new RegExp(re.source, re.flags + "g"))].map((m) => [m.index, m.index + m[0].length]);
+  // 一致した範囲 [開始, 終了) の一覧。グループがあれば 1 番目のグループ（値の部分）の範囲
+  const spans = (re, s) =>
+    [...s.matchAll(new RegExp(re.source, re.flags + "gd"))].map((m) => m.indices[1] || m.indices[0]);
 
   const luhn = (digits) =>
     [...digits].reverse().reduce((sum, c, i) => {
@@ -228,18 +234,25 @@
     return switchRatio(token) >= 0.45 && looksRandom(token) ? [[from, to]] : [];
   };
 
-  // SecretDetector.scan。kind は secret（既知の形式）、random（ランダムに見える）、personal
+  // SecretDetector.scan。kind は secret（既知の形式）、random（ランダムに見える）、
+  // url（URL の中のランダムな ID。伏せない）、personal
   const scan = (s) => {
     const found = [];
-    for (const re of SECRETS) for (const r of spans(re, s)) found.push({ kind: "secret", r });
+    for (const re of SECRETS) {
+      for (const r of spans(re, s)) found.push({ kind: "secret", r, valueOnly: hasGroup(re) });
+    }
     for (const re of PERSONAL) for (const r of spans(re, s)) found.push({ kind: "personal", r });
     for (const r of spans(CARD, s)) {
       const digits = s.slice(...r).replace(/\D/g, "");
       if (digits.length >= 13 && digits.length <= 19 && luhn(digits)) found.push({ kind: "secret", r });
     }
+    const urls = spans(URL_IN_TEXT, s);
     for (const t of spans(TOKEN, s)) {
       if (found.some((f) => f.r[0] < t[1] && t[0] < f.r[1])) continue;
-      for (const r of randomRanges(s, t)) found.push({ kind: "random", r });
+      for (const r of randomRanges(s, t)) {
+        const inURL = urls.some(([a, b]) => a <= r[0] && r[1] <= b);
+        found.push({ kind: inURL ? "url" : "random", r });
+      }
     }
     return found;
   };
@@ -258,10 +271,11 @@
     return c.length > 12 ? `${c.slice(0, 4).join("")}••••••••${c.slice(-4).join("")}` : "••••••••";
   };
 
-  // SecretDetector.redact。ランダムに見える部分だけを伏せる
+  // SecretDetector.redact。ランダムに見える部分だけを伏せる（個人情報と URL の中の ID は伏せない）
   const redact = (s) => {
     const merged = [];
-    for (const [a, b] of scan(s).filter((f) => f.kind !== "personal").map((f) => f.r).sort((x, y) => x[0] - y[0])) {
+    const hidden = scan(s).filter((f) => f.kind === "secret" || f.kind === "random");
+    for (const [a, b] of hidden.map((f) => f.r).sort((x, y) => x[0] - y[0])) {
       const last = merged[merged.length - 1];
       if (last && a <= last[1]) last[1] = Math.max(last[1], b);
       else merged.push([a, b]);
@@ -317,7 +331,9 @@
     if (!actions.includes("copy")) actions.push("copy");
     // Presentation.makePreview
     const collapsed = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 3).join(" ⏎ ");
-    const masked = !code && (secret || (suspicious && type === "credential"));
+    // ClipItem.isFullyMasked。URL で値だけが秘密なら、値だけを伏せる
+    const fullSecret = type === "url" ? found.some((f) => f.kind === "secret" && !f.valueOnly) : secret;
+    const masked = !code && (fullSecret || (suspicious && type === "credential"));
     return {
       type,
       temporary,

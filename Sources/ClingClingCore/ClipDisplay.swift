@@ -13,8 +13,12 @@ extension ClipItem {
 
     /// 本文全体を伏せる Item。一致箇所のハイライトもしない。
     /// 既知の Secret は規則に一致した部分の外（秘密鍵の本体など）にも秘密が続くことがあるので、部分マスクにしない。
+    /// ただし URL の Item で、秘密が URL のパラメータやパスワードの値だけのときは、その値だけを伏せる。
     public var isFullyMasked: Bool {
         guard contentType != .verificationCode else { return false }
+        if contentType == .url, sensitivity == .secret {
+            return reasons.contains(where: SecretDetector.fullMaskRules.contains)
+        }
         return sensitivity == .secret || (sensitivity >= .suspicious && contentType == .credential)
     }
 

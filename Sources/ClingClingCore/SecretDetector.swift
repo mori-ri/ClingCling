@@ -9,12 +9,18 @@ public struct SecretFinding: Hashable, Sendable {
         case highEntropy
         /// 個人情報（メールアドレス・電話番号）
         case personal
+        /// URL の中のランダムに見える文字列（ドキュメント ID・追跡用のパラメータなど）。
+        /// 秘密とは限らないので画面では伏せないが、外部送信は不可のまま（Fail Closed）
+        case urlIdentifier
     }
 
     public var kind: Kind
     public var rule: String
     /// 一致した範囲（UI でのマスク表示に使う）
     public var range: Range<String.Index>
+
+    /// 画面で伏せるか。個人情報と URL の中の ID は読めるまま出す
+    public var isMasked: Bool { kind != .personal && kind != .urlIdentifier }
 }
 
 /// 完全ローカルで動く Secret Detector
@@ -23,16 +29,32 @@ public struct SecretDetector: Sendable {
         let name: String
         let regex: NSRegularExpression
         let kind: SecretFinding.Kind
+        /// 0 なら一致した全体、1 なら 1 番目のグループ（値の部分）を Secret の範囲にする
+        let valueGroup: Int
     }
 
     let rules: [Rule]
 
+    /// 一致した値の部分だけが秘密で、残り（URL のホストやパス）は読めてよい規則。
+    /// URL の Item がこれらだけに当たるときは、全体ではなく値の部分だけを伏せる。
+    public static let valueOnlyRules: Set<String> = Set(defaultRules.filter { $0.valueGroup != 0 }.map(\.name))
+
+    /// 本文全体を伏せる理由になる規則（既知の Secret のうち、値だけを伏せる規則を除いたもの）
+    public static let fullMaskRules: Set<String> = Set(
+        defaultRules.filter { $0.kind == .knownSecret }.map(\.name) + ["Credit Card"]
+    ).subtracting(valueOnlyRules)
+
     public init() {
-        func rule(_ name: String, _ pattern: String, _ kind: SecretFinding.Kind = .knownSecret) -> Rule {
+        rules = Self.defaultRules
+    }
+
+    static let defaultRules: [Rule] = {
+        func rule(_ name: String, _ pattern: String, _ kind: SecretFinding.Kind = .knownSecret,
+                  valueGroup: Int = 0) -> Rule {
             // パターンは静的なので失敗したら即座に気付けるようにする
-            Rule(name: name, regex: try! NSRegularExpression(pattern: pattern), kind: kind)
+            Rule(name: name, regex: try! NSRegularExpression(pattern: pattern), kind: kind, valueGroup: valueGroup)
         }
-        rules = [
+        return [
             rule("AWS Access Key", #"\b(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\b"#),
             rule("AWS Secret Key", #"(?i)aws_?secret_?access_?key\s*[=:]\s*\S+"#),
             rule("GitHub Token", #"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b"#),
@@ -46,7 +68,9 @@ public struct SecretDetector: Sendable {
             rule("JWT", #"\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}"#),
             rule("Private Key", #"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----"#),
             rule("Certificate", #"-----BEGIN CERTIFICATE-----"#),
-            rule("Credentials in URL", #"(?i)\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:[^\s@/]+@"#),
+            rule("Credentials in URL", #"(?i)\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s@/]+)@"#, valueGroup: 1),
+            rule("Slack Webhook", #"\bhooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/([A-Za-z0-9]{16,})"#, valueGroup: 1),
+            rule("Discord Webhook", #"\bdiscord(?:app)?\.com/api/webhooks/\d+/([A-Za-z0-9_\-]{30,})"#, valueGroup: 1),
             // `DB_PASSWORD=…`（前に語が付く形）や `{"password": "…"}`（キーが引用符で閉じる形）も対象にする。
             // `token` だけの語は変数名として多いので、`GITHUB_TOKEN` のように区切りが付くものに限る。
             rule("Password Assignment",
@@ -56,20 +80,20 @@ public struct SecretDetector: Sendable {
                  #"(?:パスワード|パスコード|シークレット|秘密鍵|API ?キー|アクセスキー|アクセストークン)\s*(?:[:：=＝]|は)\s*[「『"']?[!-~]{4,}"#), // no-l10n
             rule("PIN", #"暗証番号\s*(?:[:：=＝は]\s*)?[0-9０-９]{4,}"#), // no-l10n
             rule("Sensitive URL Parameter",
-                 #"(?i)[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=[^&\s]{8,}"#),
+                 #"(?i)[?&#](?:token|access_token|id_token|refresh_token|api_?key|key|secret|password|sig|signature|code|auth)=([^&\s]{8,})"#, valueGroup: 1),
             rule("Email Address", #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#, .personal),
             rule("Phone Number", #"(?<![\d\-])(?:\+81[\- ]?|0)\d{1,4}[\- ]\d{1,4}[\- ]\d{3,4}(?![\d\-])"#, .personal),
             // 区切りのない携帯電話番号。固定電話の 10 桁は他の数字と区別できないので対象にしない。
             rule("Phone Number", #"(?<![\d\-])(?:\+81|0)[789]0\d{8}(?![\d\-])"#, .personal),
         ]
-    }
+    }()
 
     public func scan(_ text: String) -> [SecretFinding] {
         var findings: [SecretFinding] = []
         let ns = NSRange(text.startIndex..., in: text)
         for rule in rules {
             for match in rule.regex.matches(in: text, range: ns) {
-                guard let range = Range(match.range, in: text) else { continue }
+                guard let range = Range(match.range(at: rule.valueGroup), in: text) else { continue }
                 findings.append(SecretFinding(kind: rule.kind, rule: rule.name, range: range))
             }
         }
@@ -107,6 +131,8 @@ public struct SecretDetector: Sendable {
 
     // MARK: - Entropy
 
+    /// 本文の中の URL（`https://…` などスキーム付きのもの）。空白・引用符・山括弧で終わる
+    private static let urlRegex = try! NSRegularExpression(pattern: #"(?i)\b[a-z][a-z0-9+.\-]*://[^\s<>"'`]+"#)
     private static let tokenRegex = try! NSRegularExpression(pattern: #"[A-Za-z0-9+/=_\-.~]{20,}"#)
     private static let camelWordsRegex = try! NSRegularExpression(
         pattern: #"^(?:[A-Z]?[a-z]{2,}|[A-Z]{2,}(?![a-z])|[0-9]+|[\-_=.~+])+$"#)
@@ -114,13 +140,17 @@ public struct SecretDetector: Sendable {
         pattern: #"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"#)
 
     /// 未知フォーマットの Token 対策。長くランダムに見える文字列を `highEntropy` とする。
+    /// URL の中のランダムな文字列は `urlIdentifier` にする（画面では伏せない）。
     private func entropyFindings(in text: String, excluding existing: [SecretFinding]) -> [SecretFinding] {
         let ns = NSRange(text.startIndex..., in: text)
+        let urls = Self.urlRegex.matches(in: text, range: ns).compactMap { Range($0.range, in: text) }
         return Self.tokenRegex.matches(in: text, range: ns).flatMap { match -> [SecretFinding] in
             guard let range = Range(match.range, in: text) else { return [] }
             if existing.contains(where: { $0.range.overlaps(range) }) { return [] }
-            return Self.randomRanges(in: text, token: range).map {
-                SecretFinding(kind: .highEntropy, rule: "High Entropy String", range: $0)
+            return Self.randomRanges(in: text, token: range).map { random in
+                urls.contains { $0.contains(random.lowerBound) && random.upperBound <= $0.upperBound }
+                    ? SecretFinding(kind: .urlIdentifier, rule: "Random ID in URL", range: random)
+                    : SecretFinding(kind: .highEntropy, rule: "High Entropy String", range: random)
             }
         }
     }
@@ -167,9 +197,10 @@ public struct SecretDetector: Sendable {
 
     // MARK: - Redaction
 
-    /// Secret / ランダムな Token の部分だけを伏せた文字列（一覧表示用）。個人情報は伏せない。
+    /// Secret / ランダムな Token の部分だけを伏せた文字列（一覧表示用）。
+    /// 個人情報と、URL の中のランダムな文字列（ドキュメント ID など）は伏せない。
     public func redact(_ text: String) -> String {
-        let ranges = SearchQuery.merged(scan(text).filter { $0.kind != .personal }.map(\.range))
+        let ranges = SearchQuery.merged(scan(text).filter(\.isMasked).map(\.range))
         guard !ranges.isEmpty else { return text }
         var result = ""
         var cursor = text.startIndex
